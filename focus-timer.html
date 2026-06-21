@@ -1,0 +1,2391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Focus Timer</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: #f9f9f8;
+  color: #1a1a1a;
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  padding: 0 1rem 3rem;
+}
+.sticky-header {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  background: #fff;
+  border-bottom: 1px solid #e8e8e8;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 8px 1rem;
+  transition: background 0.6s ease, border-color 0.6s ease;
+}
+.sticky-header.running { background: var(--theme-bg, #e8f5ee); border-color: var(--theme-border, #b2dcc2); }
+.sticky-header.on-break { background: #e8f0fb !important; border-color: #b2c8f0 !important; }
+.sticky-label { font-size: 10px; color: #bbb; text-transform: uppercase; letter-spacing: 0.1em; transition: color 0.6s; }
+.sticky-header.running .sticky-label { color: var(--theme-label, #7abf93); }
+.sticky-header.on-break .sticky-label { color: #7a9abf !important; }
+.sticky-task { font-size: 26px; font-weight: 700; color: #2d9e4f; text-align: center; white-space: normal; overflow-wrap: break-word; max-width: 300px; min-width: 0; line-height: 1.2; letter-spacing: -0.5px; transition: color 0.6s; }
+.sticky-header.running .sticky-task { color: var(--theme-text, #1a6b38); }
+.sticky-header.on-break .sticky-task { color: #2a4a9e !important; }
+.sticky-due { font-size: 12px; color: #c98a3a; font-weight: 500; display: none; margin-top: 2px; }
+.sticky-time { font-size: 26px; font-weight: 400; letter-spacing: -1px; font-variant-numeric: tabular-nums; transition: color 0.6s; }
+.sticky-header.running .sticky-time { color: var(--theme-text, #1a6b38); }
+.sticky-header.on-break .sticky-time { color: #2a4a9e !important; }
+.sticky-bar { width: 100%; max-width: 400px; height: 2px; background: #e8e8e8; margin-top: 6px; transition: background 0.6s; }
+.sticky-header.running .sticky-bar { background: var(--theme-bar-bg, #b2dcc2); }
+.sticky-header.on-break .sticky-bar { background: #b2c8f0 !important; }
+.sticky-bar-fill { height: 100%; background: #1a1a1a; width: 0%; transition: width 0.8s linear, background 0.6s; }
+.sticky-header.running .sticky-bar-fill { background: var(--theme-text, #1a6b38); }
+.sticky-header.on-break .sticky-bar-fill { background: #2a4a9e !important; }
+
+.color-picker-row { display: flex; gap: 8px; align-items: center; justify-content: center; flex-wrap: wrap; }
+.color-swatch {
+  width: 22px; height: 22px; border-radius: 50%; cursor: pointer;
+  border: 2px solid transparent; transition: transform 0.15s, border-color 0.15s;
+}
+.color-swatch:hover { transform: scale(1.2); }
+.color-swatch.selected { border-color: #1a1a1a; transform: scale(1.15); }
+.color-picker-label { font-size: 11px; color: #999; text-transform: uppercase; letter-spacing: 0.08em; }
+.spacer { height: 160px; }
+.container { width: 100%; max-width: 400px; display: flex; flex-direction: column; align-items: center; gap: 1.5rem; }
+.task-label { font-size: 11px; color: #999; text-transform: uppercase; letter-spacing: 0.1em; text-align: center; margin-bottom: 4px; }
+#taskName {
+  font-size: 18px; font-weight: 500; color: #1a1a1a; text-align: center;
+  border: none; border-bottom: 1.5px solid transparent; background: transparent;
+  outline: none; width: 100%; padding: 2px 4px; font-family: inherit;
+  transition: border-color 0.2s;
+}
+#taskName:hover { border-bottom-color: #ddd; }
+#taskName:focus { border-bottom-color: #aaa; }
+.time-btns { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+.time-btn {
+  font-size: 13px; padding: 5px 14px; border: 1px solid #ddd;
+  background: transparent; border-radius: 20px; cursor: pointer;
+  color: #666; font-family: inherit; transition: all 0.15s;
+}
+.time-btn:hover { background: #f0f0f0; }
+.time-btn.active { background: #1a1a1a; color: #fff; border-color: #1a1a1a; }
+.custom-row { display: flex; align-items: center; gap: 6px; }
+#customMins {
+  font-size: 13px; padding: 5px 10px; border: 1px solid #ddd;
+  border-radius: 20px; width: 90px; text-align: center; outline: none;
+  font-family: inherit; color: #1a1a1a; background: #fff; transition: border-color 0.15s;
+}
+#customMins:focus { border-color: #aaa; }
+.custom-label { font-size: 13px; color: #999; }
+.timer-display { font-size: 80px; font-weight: 400; letter-spacing: -3px; font-variant-numeric: tabular-nums; line-height: 1; }
+.progress-bar { width: 100%; height: 3px; background: #e8e8e8; border-radius: 2px; overflow: hidden; }
+.progress-fill { height: 100%; background: #1a1a1a; border-radius: 2px; width: 0%; transition: width 0.8s linear; }
+.mantra { font-size: 14px; color: #999; text-align: center; line-height: 1.6; min-height: 44px; max-width: 300px; }
+.btn-row { display: flex; gap: 10px; }
+button {
+  font-size: 13px; padding: 7px 18px; border: 1px solid #ccc;
+  background: transparent; border-radius: 6px; cursor: pointer;
+  color: #1a1a1a; font-family: inherit; transition: all 0.15s;
+}
+button:hover { background: #f0f0f0; }
+button:active { transform: scale(0.97); }
+.primary { background: #1a1a1a; color: #fff; border-color: #1a1a1a; }
+.primary:hover { background: #333; }
+#finishBtn { background: #e8f5ee; border-color: #2d9e4f; color: #1a6b38; }
+#finishBtn:hover { background: #d5ecdf; }
+.break-btn { background: #e8f0fb; border-color: #b2c8f0; color: #2a4a9e; }
+.break-btn:hover { background: #d8e6f8; }
+.toggle-btn {
+  font-size: 12px; color: #999; background: transparent;
+  border: 1px solid #e8e8e8; border-radius: 20px; padding: 4px 14px;
+  cursor: pointer; font-family: inherit; transition: all 0.15s;
+}
+.toggle-btn:hover { background: #f5f5f5; color: #666; }
+.sound-panel {
+  width: 100%; background: #fff; border: 1px solid #e8e8e8;
+  border-radius: 12px; padding: 1rem 1.25rem;
+  flex-direction: column; gap: 12px; display: none;
+}
+.sound-row { display: flex; align-items: center; gap: 10px; }
+.sound-row-label { font-size: 11px; color: #999; text-transform: uppercase; letter-spacing: 0.08em; min-width: 75px; }
+.sound-row input[type=range] { flex: 1; cursor: pointer; }
+.sound-toggle {
+  font-size: 11px; padding: 3px 12px; border: 1px solid #ddd;
+  border-radius: 20px; background: transparent; color: #999;
+  cursor: pointer; font-family: inherit; transition: all 0.15s; white-space: nowrap;
+}
+.sound-toggle.on-bell { background: #2d9e4f; color: #fff; border-color: #2d9e4f; }
+.sound-toggle.on-noise { background: #8B6F5E; color: #fff; border-color: #8B6F5E; }
+.divider { width: 100%; height: 1px; background: #e8e8e8; }
+.boxes-row { display: flex; gap: 12px; width: 100%; }
+.box {
+  flex: 1; border: 1px solid #e8e8e8; border-radius: 12px;
+  padding: 1rem; display: flex; flex-direction: column;
+  align-items: center; gap: 8px; background: #fff;
+}
+.box-label { font-size: 11px; color: #999; text-transform: uppercase; letter-spacing: 0.08em; }
+.big-num { font-size: 36px; font-weight: 500; line-height: 1; }
+.sub-label { font-size: 11px; color: #bbb; text-align: center; }
+.breath-section {
+  width: 100%; border: 1px solid #e8e8e8; border-radius: 12px;
+  padding: 1.25rem; display: flex; flex-direction: column;
+  align-items: center; gap: 10px; background: #fff;
+}
+.breath-ring-wrap { width: 110px; height: 110px; display: flex; align-items: center; justify-content: center; }
+#breathRing {
+  width: 52px; height: 52px; border-radius: 50%;
+  background: #ddf0fa; border: 1.5px solid #90cce8;
+  transition: transform 4s ease-in-out;
+}
+.breath-instruction { font-size: 17px; font-weight: 500; opacity: 0.25; transition: opacity 0.3s; }
+.breath-countdown { font-size: 13px; color: #999; opacity: 0; font-variant-numeric: tabular-nums; }
+.breath-idle { font-size: 12px; color: #bbb; text-align: center; }
+.sessions-box {
+  width: 100%; border: 1px solid #e8e8e8; border-radius: 12px;
+  padding: 1.25rem; display: flex; flex-direction: column;
+  align-items: center; gap: 8px; background: #fff;
+}
+.sessions-num { font-size: 42px; font-weight: 400; line-height: 1; }
+.trackers-box {
+  width: 100%; display: flex; flex-direction: column; gap: 12px;
+}
+.trackers-list { display: flex; flex-direction: column; gap: 12px; }
+.tracker-card {
+  width: 100%; border: 1px solid #e8e8e8; border-radius: 12px;
+  padding: 1.25rem; display: flex; flex-direction: column;
+  align-items: center; gap: 8px; background: #fff; position: relative;
+}
+.tracker-name-row { display: flex; align-items: center; gap: 6px; width: 100%; justify-content: center; }
+.tracker-name {
+  font-size: 11px; color: #999; text-transform: uppercase; letter-spacing: 0.08em;
+  border: none; border-bottom: 1px solid transparent; background: transparent;
+  outline: none; text-align: center; font-family: inherit; max-width: 200px;
+  padding: 1px 2px; transition: border-color 0.15s;
+}
+.tracker-name:hover { border-bottom-color: #ddd; }
+.tracker-name:focus { border-bottom-color: #aaa; }
+.tracker-remove-btn {
+  position: absolute; top: 8px; right: 10px; font-size: 14px; color: #ccc;
+  background: none; border: none; cursor: pointer; line-height: 1; padding: 2px;
+}
+.tracker-remove-btn:hover { color: #c44; }
+.tracker-num { font-size: 36px; font-weight: 500; line-height: 1; }
+.tracker-sub { font-size: 11px; color: #bbb; text-align: center; }
+.tracker-btn-row { display: flex; gap: 8px; }
+.tracker-reset-link { font-size: 10px; color: #ccc; background: none; border: none; cursor: pointer; font-family: inherit; }
+.tracker-reset-link:hover { color: #999; }
+.done-msg { font-size: 15px; font-weight: 500; text-align: center; display: none; padding: 0.5rem 0; }
+
+.new-day-row { width: 100%; display: flex; justify-content: center; }
+.new-day-btn { font-size: 11px; color: #ccc; background: none; border: none; cursor: pointer; font-family: inherit; transition: color 0.15s; }
+.new-day-btn:hover { color: #999; }
+
+.tasks-box {
+  width: 100%; background: #e8f5ee; border: 1px solid #b2dcc2;
+  border-radius: 12px; padding: 1rem 1.25rem;
+  flex-direction: column; gap: 10px; display: none;
+}
+.task-input-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.task-input-row input[type=text] {
+  flex: 1; min-width: 120px; font-size: 13px; padding: 6px 10px;
+  border: 1px solid #ddd; border-radius: 6px;
+  outline: none; font-family: inherit; color: #1a1a1a; background: #fff;
+}
+.task-input-row input[type=time] {
+  font-size: 13px; padding: 6px 8px;
+  border: 1px solid #ddd; border-radius: 6px;
+  outline: none; font-family: inherit; color: #1a1a1a; background: #fff;
+}
+.task-input-row input:focus { border-color: #aaa; }
+.task-add-btn {
+  font-size: 13px; padding: 6px 14px; border: 1px solid #ccc;
+  border-radius: 6px; background: transparent; cursor: pointer;
+  font-family: inherit; color: #1a1a1a; transition: all 0.15s;
+}
+.task-add-btn:hover { background: #f0f0f0; }
+.task-list { display: flex; flex-direction: column; gap: 6px; min-height: 12px; }
+.task-list.list-drop-target { outline: 2px dashed #2d9e4f; outline-offset: 4px; border-radius: 6px; }
+.task-item {
+  display: flex; flex-direction: column;
+  padding: 6px 0; border-bottom: 1px solid #f0f0f0;
+}
+.task-item:last-child { border-bottom: none; }
+.task-row { display: flex; align-items: center; gap: 6px; }
+.task-item input[type=checkbox] { accent-color: #2d9e4f; width: 16px; height: 16px; cursor: pointer; flex-shrink: 0; }
+.task-star {
+  font-size: 16px; cursor: pointer; flex-shrink: 0; line-height: 1;
+  color: #ddd; background: none; border: none; padding: 0 2px;
+}
+.task-star.starred { color: #e8a93a; }
+.task-star.starred-medium { color: #3a8be8; }
+.task-item-main { flex: 1; display: flex; flex-direction: column; gap: 1px; min-width: 0; cursor: pointer; }
+.task-item-text { font-size: 13px; color: #1a1a1a; line-height: 1.4; word-break: break-word; }
+.task-item-text.done { text-decoration: line-through; color: #bbb; }
+.task-item-due { font-size: 11px; color: #c98a3a; }
+.task-delete {
+  font-size: 16px; color: #ccc; background: none; border: none;
+  cursor: pointer; padding: 0 2px; line-height: 1; flex-shrink: 0;
+}
+.task-delete:hover { color: #999; }
+.task-edit-btn {
+  font-size: 13px; color: #ccc; background: none; border: none;
+  cursor: pointer; padding: 0 2px; line-height: 1; flex-shrink: 0;
+}
+.task-edit-btn:hover { color: #999; }
+.task-edit-input {
+  font-size: 13px; padding: 3px 6px; border: 1px solid #aaa;
+  border-radius: 4px; outline: none; font-family: inherit;
+  color: #1a1a1a; background: #fff; width: 100%;
+}
+.task-drag-handle {
+  font-size: 14px; color: #ccc; cursor: grab; flex-shrink: 0;
+  padding: 0 2px; line-height: 1; user-select: none; touch-action: none;
+}
+.task-drag-handle:hover { color: #999; }
+.task-drag-handle:active { cursor: grabbing; }
+.task-item.dragging { opacity: 0.4; }
+.task-item.drag-over-top { border-top: 2px solid #2d9e4f; }
+.task-item.drag-over-bottom { border-bottom: 2px solid #2d9e4f; }
+.task-item.drag-over-middle { background: #e8f5ee; outline: 2px dashed #2d9e4f; outline-offset: -2px; border-radius: 6px; }
+
+.subtask-list { display: flex; flex-direction: column; gap: 4px; margin: 6px 0 2px 38px; }
+.subtask-item { display: flex; align-items: center; gap: 6px; padding: 2px 0; }
+.subtask-item.dragging { opacity: 0.4; }
+.subtask-item.drag-over-top { border-top: 2px solid #2d9e4f; }
+.subtask-item.drag-over-bottom { border-bottom: 2px solid #2d9e4f; }
+.subtask-item input[type=checkbox] { accent-color: #5a9e7a; width: 13px; height: 13px; cursor: pointer; flex-shrink: 0; }
+.subtask-text { font-size: 12px; color: #555; line-height: 1.3; flex: 1; word-break: break-word; cursor: pointer; }
+.subtask-text.done { text-decoration: line-through; color: #bbb; }
+.subtask-delete {
+  font-size: 13px; color: #ccc; background: none; border: none;
+  cursor: pointer; padding: 0 2px; line-height: 1; flex-shrink: 0;
+}
+.subtask-delete:hover { color: #999; }
+.subtask-add-row { display: flex; align-items: center; gap: 6px; margin: 4px 0 2px 38px; }
+.subtask-add-row input {
+  flex: 1; font-size: 12px; padding: 4px 8px;
+  border: 1px solid #ddd; border-radius: 5px;
+  outline: none; font-family: inherit; color: #1a1a1a; background: #fff;
+}
+.subtask-add-btn {
+  font-size: 11px; padding: 4px 10px; border: 1px solid #ccc;
+  border-radius: 5px; background: transparent; cursor: pointer;
+  font-family: inherit; color: #1a1a1a;
+}
+.subtask-toggle {
+  font-size: 13px; color: #ccc; background: none; border: none;
+  cursor: pointer; font-family: inherit; padding: 0 2px; line-height: 1;
+  flex-shrink: 0; opacity: 0; transition: opacity 0.15s, color 0.15s;
+}
+.task-row:hover .subtask-toggle { opacity: 1; }
+.subtask-toggle:hover { color: #2d9e4f; }
+.task-empty { font-size: 13px; color: #bbb; text-align: center; padding: 8px 0; }
+.task-clear-btn {
+  font-size: 11px; color: #ccc; background: none; border: none;
+  cursor: pointer; font-family: inherit; text-align: right;
+  padding: 0; transition: color 0.15s;
+}
+.task-clear-btn:hover { color: #999; }
+.task-hint { font-size: 10px; color: #aaa; text-align: center; }
+.template-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.template-chip {
+  display: flex; align-items: center; gap: 4px;
+  font-size: 12px; padding: 5px 10px; border: 1px solid #ccc;
+  border-radius: 20px; background: #fff; cursor: pointer;
+  font-family: inherit; color: #1a1a1a; transition: all 0.15s;
+}
+.template-chip:hover { background: #f0f0f0; }
+.template-chip.dragging { opacity: 0.4; }
+.template-chip-delete {
+  font-size: 13px; color: #ccc; background: none; border: none;
+  cursor: pointer; padding: 0; line-height: 1;
+}
+.template-chip-delete:hover { color: #c44; }
+
+.template-modal-overlay {
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.3); z-index: 200;
+  display: flex; align-items: center; justify-content: center;
+  padding: 1rem;
+}
+.template-modal {
+  background: #fff; border-radius: 12px; padding: 1.5rem;
+  width: 100%; max-width: 320px; display: flex; flex-direction: column; gap: 12px;
+}
+.template-modal-title { font-size: 15px; font-weight: 600; text-align: center; color: #1a1a1a; }
+.template-modal-sub { font-size: 12px; color: #999; text-align: center; margin-top: -6px; }
+.template-modal-btn {
+  font-size: 13px; padding: 10px 14px; border: 1px solid #ccc;
+  border-radius: 8px; background: transparent; cursor: pointer;
+  font-family: inherit; color: #1a1a1a; transition: all 0.15s; text-align: center;
+}
+.template-modal-btn:hover { background: #f0f0f0; }
+.template-modal-btn.primary { background: #1a1a1a; color: #fff; border-color: #1a1a1a; }
+.template-modal-btn.primary:hover { background: #333; }
+.template-modal-btn.cancel { color: #999; border: none; }
+
+.seal-trigger-row { width: 100%; display: flex; justify-content: center; }
+.seal-trigger-btn {
+  font-size: 12px; padding: 6px 16px; border: 1px solid #c9a83a;
+  border-radius: 20px; background: #fef8e8; color: #7a6010;
+  cursor: pointer; font-family: inherit; transition: all 0.15s;
+  display: flex; align-items: center; gap: 6px;
+}
+.seal-trigger-btn:hover { background: #fbf0d0; }
+
+.seal-modal-overlay {
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.55); z-index: 400;
+  display: flex; align-items: center; justify-content: center;
+  padding: 1rem;
+}
+.seal-modal {
+  background: #fdfbf6; border-radius: 16px; padding: 1.5rem;
+  width: 100%; max-width: 380px; display: flex; flex-direction: column;
+  align-items: center; gap: 14px;
+}
+.seal-modal-title { font-size: 16px; font-weight: 600; color: #1a1a1a; text-align: center; }
+.seal-modal-sub { font-size: 12px; color: #999; text-align: center; line-height: 1.5; margin-top: -8px; }
+.seal-canvas-wrap { position: relative; width: 100%; }
+#sealCanvas {
+  width: 100%; aspect-ratio: 1; border-radius: 12px;
+  border: 2px solid #e0d5b8; background: #fffdf7; touch-action: none;
+  cursor: crosshair;
+}
+.seal-canvas-wrap.stamping #sealCanvas { animation: sealStampFx 0.7s ease-out forwards; }
+@keyframes sealStampFx {
+  0% { transform: scale(1); filter: brightness(1); }
+  35% { transform: scale(0.94); filter: brightness(0.85); }
+  100% { transform: scale(1); filter: brightness(1) sepia(0.15); }
+}
+.seal-glow {
+  position: absolute; top: 50%; left: 50%; width: 0; height: 0;
+  border-radius: 50%; background: radial-gradient(circle, rgba(201,168,58,0.5) 0%, rgba(201,168,58,0) 70%);
+  transform: translate(-50%, -50%); pointer-events: none;
+}
+.seal-glow.fire { animation: sealGlowFx 0.7s ease-out forwards; }
+@keyframes sealGlowFx {
+  0% { width: 0; height: 0; opacity: 0.9; }
+  100% { width: 220%; height: 220%; opacity: 0; }
+}
+.seal-btn-row { display: flex; gap: 10px; }
+.seal-btn {
+  font-size: 13px; padding: 8px 16px; border: 1px solid #ccc;
+  border-radius: 8px; background: transparent; cursor: pointer;
+  font-family: inherit; color: #1a1a1a; transition: all 0.15s;
+}
+.seal-btn:hover { background: #f0f0f0; }
+.seal-btn.primary { background: #c9a83a; color: #fff; border-color: #c9a83a; }
+.seal-btn.primary:hover { background: #b39530; }
+.seal-confirmed-msg {
+  font-size: 14px; font-weight: 600; color: #7a6010; text-align: center; display: none;
+}
+.seal-color-row { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+.seal-color-swatch {
+  width: 22px; height: 22px; border-radius: 50%; cursor: pointer;
+  border: 2px solid transparent; transition: transform 0.15s, border-color 0.15s;
+}
+.seal-color-swatch:hover { transform: scale(1.15); }
+.seal-color-swatch.selected { border-color: #1a1a1a; transform: scale(1.15); }
+.seal-commitment-input {
+  width: 100%; font-size: 13px; padding: 8px 12px;
+  border: 1px solid #e0d5b8; border-radius: 8px; outline: none;
+  font-family: inherit; color: #1a1a1a; background: #fffdf7;
+  text-align: center; transition: border-color 0.15s;
+}
+.seal-commitment-input:focus { border-color: #c9a83a; }
+
+.active-seal-display {
+  position: fixed; top: 130px; right: 16px; z-index: 150;
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  background: #fdfbf6; border: 2px solid #e0d5b8; border-radius: 14px;
+  padding: 10px; box-shadow: 0 3px 14px rgba(0,0,0,0.14);
+  width: 110px; min-width: 90px; max-width: 320px; user-select: none;
+  position: fixed; box-sizing: border-box;
+}
+.active-seal-display.dragging,
+.active-seal-display.resizing { box-shadow: 0 6px 20px rgba(0,0,0,0.22); opacity: 0.95; }
+.active-seal-display.celebrate { animation: sealCelebrate 1.4s ease; }
+@keyframes sealCelebrate {
+  0% { transform: scale(1); }
+  20% { transform: scale(1.15); box-shadow: 0 0 0 8px rgba(201,168,58,0.25); }
+  50% { transform: scale(1.05); }
+  100% { transform: scale(1); box-shadow: 0 3px 14px rgba(0,0,0,0.14); }
+}
+.active-seal-drag-handle {
+  font-size: 13px; color: #ccc; cursor: grab; line-height: 1;
+  letter-spacing: -2px; padding: 2px 4px; align-self: flex-start;
+}
+.active-seal-drag-handle:active { cursor: grabbing; }
+.active-seal-resize-handle {
+  position: absolute; bottom: 2px; right: 2px; width: 16px; height: 16px;
+  cursor: nwse-resize; color: #ccc; display: flex; align-items: flex-end; justify-content: flex-end;
+}
+.active-seal-resize-handle:hover { color: #7a6010; }
+.active-seal-resize-handle svg { width: 12px; height: 12px; }
+#activeSealCanvas { width: 100%; height: auto; aspect-ratio: 1; border-radius: 8px; display: block; pointer-events: none; flex-shrink: 0; }
+.active-seal-commitment {
+  font-size: 11px; color: #7a6010; line-height: 1.3; text-align: center;
+  font-style: italic; word-break: break-word; pointer-events: none;
+}
+</style>
+</head>
+<body>
+
+<div class="sticky-header">
+  <div class="sticky-label">working on</div>
+  <div class="sticky-task" id="stickyTask">my task</div>
+  <div class="sticky-due" id="stickyDue"></div>
+  <div class="sticky-time" id="stickyTime">25:00</div>
+  <div class="sticky-bar"><div class="sticky-bar-fill" id="stickyFill"></div></div>
+</div>
+
+<div class="active-seal-display" id="activeSealDisplay" style="display:none">
+  <div class="active-seal-drag-handle" title="drag to move">&#8942;&#8942;</div>
+  <canvas id="activeSealCanvas" width="160" height="160"></canvas>
+  <div class="active-seal-commitment" id="activeSealCommitment"></div>
+  <div class="active-seal-resize-handle" id="sealResizeHandle" title="drag to resize">
+    <svg viewBox="0 0 16 16" fill="currentColor"><path d="M14 14H10V12.5H12.5V10H14V14ZM14 6.5H12.5V4H10V2.5H14V6.5ZM2 9.5H3.5V12H6V13.5H2V9.5ZM6 2.5H3.5V5H2V1H6V2.5Z"/></svg>
+  </div>
+</div>
+
+<div class="container">
+  <div class="spacer"></div>
+
+  <input id="taskName" type="text" value="my task" maxlength="120" spellcheck="false" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0" />
+
+  <div style="display:flex;flex-direction:column;align-items:center;gap:8px">
+    <div class="time-btns">
+      <button class="time-btn" data-mins="15">15 min</button>
+      <button class="time-btn active" data-mins="25">25 min</button>
+      <button class="time-btn" data-mins="50">50 min</button>
+      <button class="time-btn" data-mins="60">60 min</button>
+    </div>
+    <div class="custom-row">
+      <input id="customMins" type="number" min="1" max="180" placeholder="custom" />
+      <span class="custom-label">min</span>
+      <button class="time-btn" id="setCustomBtn">set</button>
+    </div>
+  </div>
+
+  <div class="timer-display" id="display">25:00</div>
+  <div class="progress-bar"><div class="progress-fill" id="fill"></div></div>
+  <div class="mantra" id="mantra">you are here. this moment is enough.</div>
+
+  <div class="btn-row">
+    <button class="primary" id="startBtn">start</button>
+    <button id="pauseBtn" style="display:none">pause</button>
+    <button id="resetBtn">reset</button>
+    <button id="finishBtn" style="display:none">I'm finished</button>
+  </div>
+
+  <div class="seal-trigger-row" id="sealTriggerRow" style="display:flex">
+    <button class="seal-trigger-btn" id="sealTriggerBtn">&#128274; seal this session</button>
+  </div>
+
+  <div class="seal-modal-overlay" id="sealModalOverlay" style="display:none">
+    <div class="seal-modal">
+      <div class="seal-modal-title">draw your seal</div>
+      <div class="seal-modal-sub">draw anything &mdash; a symbol, your initial, a scribble. it's your commitment to stay in this session.</div>
+      <div class="seal-canvas-wrap" id="sealCanvasWrap">
+        <canvas id="sealCanvas" width="400" height="400"></canvas>
+        <div class="seal-glow" id="sealGlow"></div>
+      </div>
+      <div class="seal-color-row" id="sealColorRow">
+        <div class="seal-color-swatch selected" data-color="#7a6010" style="background:#7a6010" title="ink"></div>
+        <div class="seal-color-swatch" data-color="#8b1a1a" style="background:#8b1a1a" title="wax red"></div>
+        <div class="seal-color-swatch" data-color="#1a3a8b" style="background:#1a3a8b" title="ink blue"></div>
+        <div class="seal-color-swatch" data-color="#1a6b38" style="background:#1a6b38" title="forest"></div>
+        <div class="seal-color-swatch" data-color="#5a2a7a" style="background:#5a2a7a" title="violet"></div>
+        <div class="seal-color-swatch" data-color="#1a1a1a" style="background:#1a1a1a" title="black"></div>
+        <div class="seal-color-swatch" data-color="#c9a83a" style="background:#c9a83a" title="gold"></div>
+      </div>
+      <input id="sealCommitmentInput" type="text" placeholder="write your commitment (optional)..." maxlength="120" class="seal-commitment-input" />
+      <div class="seal-confirmed-msg" id="sealConfirmedMsg">sealed. stay with it.</div>
+      <div class="seal-btn-row" id="sealBtnRow">
+        <button class="seal-btn" id="sealClearBtn">clear</button>
+        <button class="seal-btn primary" id="sealConfirmBtn">seal it &amp; begin</button>
+        <button class="seal-btn" id="sealCancelBtn">cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="btn-row">
+    <button class="break-btn" id="break5Btn">5 min break</button>
+    <button class="break-btn" id="break10Btn">10 min break</button>
+  </div>
+
+  <div class="custom-row">
+    <input id="customBreakMins" type="number" min="1" max="60" placeholder="custom" />
+    <span class="custom-label">min break</span>
+    <button class="break-btn" id="setCustomBreakBtn">go</button>
+  </div>
+
+  <div style="width:100%;display:flex;justify-content:center">
+    <button class="toggle-btn" id="toggleSound">&#9658; sound settings</button>
+  </div>
+
+  <div class="sound-panel" id="soundPanel">
+    <div class="sound-row">
+      <span class="sound-row-label">bell vol</span>
+      <input type="range" id="volumeSlider" min="0" max="1" step="0.05" value="0.12" style="accent-color:#2d9e4f" />
+      <button class="sound-toggle on-bell" id="bellBtn">on</button>
+    </div>
+    <div class="sound-row">
+      <span class="sound-row-label" style="min-width:75px"></span>
+      <button class="sound-toggle" id="testBellBtn" style="font-size:11px;padding:3px 12px;border:1px solid #ddd;border-radius:20px;background:transparent;color:#999;cursor:pointer;font-family:inherit;">&#9654; test bell</button>
+    </div>
+    <div class="sound-row">
+      <span class="sound-row-label">brown noise</span>
+      <input type="range" id="noiseVolume" min="0" max="1" step="0.02" value="0.3" style="accent-color:#8B6F5E" />
+      <button class="sound-toggle" id="noiseBtn">off</button>
+    </div>
+    <div class="sound-row">
+      <span class="sound-row-label">white noise</span>
+      <input type="range" id="whiteVolume" min="0" max="1" step="0.02" value="0.3" style="accent-color:#666" />
+      <button class="sound-toggle" id="whiteBtn">off</button>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <div class="boxes-row">
+    <div class="box">
+      <div class="box-label">distractions</div>
+      <div class="big-num" id="distractNum">0</div>
+      <div class="sub-label" id="distractMsg">caught</div>
+      <button id="distractBtn">I got distracted</button>
+      <button class="task-clear-btn" id="resetDistractBtn">reset</button>
+    </div>
+    <div class="box">
+      <div class="box-label">urges</div>
+      <div class="big-num" id="urgeNum">0</div>
+      <div class="sub-label">caught</div>
+      <button id="urgeBtn">I feel an urge</button>
+      <button class="task-clear-btn" id="resetUrgeBtn">reset</button>
+    </div>
+  </div>
+
+  <div class="breath-section">
+    <div class="box-label">breathe</div>
+    <div class="breath-ring-wrap"><div id="breathRing"></div></div>
+    <div class="breath-instruction" id="breathInstruction">—</div>
+    <div class="breath-countdown" id="breathCountdown"></div>
+    <div class="breath-idle" id="breathIdle">press "I feel an urge" to begin</div>
+  </div>
+
+  <div style="width:100%;display:flex;justify-content:center">
+    <button class="toggle-btn" id="toggleCalls">&#9658; trackers</button>
+  </div>
+  <div class="trackers-box" id="trackersBox" style="display:none">
+    <div class="trackers-list" id="trackersList"></div>
+    <button class="task-clear-btn" id="addTrackerBtn" style="text-align:left">+ add another tracker</button>
+  </div>
+
+  <div style="width:100%;display:flex;justify-content:center">
+    <button class="toggle-btn" id="toggleSessions">&#9658; sessions completed</button>
+  </div>
+  <div class="sessions-box" id="sessionsBox" style="display:none">
+    <div class="box-label">sessions completed</div>
+    <div class="sessions-num" id="sessionsNum">0</div>
+    <div class="sub-label" id="sessionsMsg">finish a timer to log one</div>
+    <button id="sessionBtn">+ add extra session</button>
+  </div>
+
+  <div style="width:100%;display:flex;justify-content:center">
+    <button class="toggle-btn" id="toggleTasks">&#9658; my tasks</button>
+  </div>
+  <div class="tasks-box" id="tasksBox">
+    <div class="color-picker-label" style="align-self:flex-start">tasks</div>
+    <div class="task-list" id="taskList"></div>
+    <div class="task-empty" id="taskEmpty">no tasks yet. add one above.</div>
+
+    <div class="task-input-row" id="quickAddRow">
+      <input id="quickAddInput" type="text" placeholder="quick add a task and press enter..." maxlength="100" />
+      <input id="taskDue" type="time" title="deadline (optional)" />
+      <button class="task-add-btn" id="quickAddBtn">add</button>
+    </div>
+
+    <button class="task-clear-btn" id="toggleImport" style="text-align:left">+ import from text</button>
+    <div id="importPanel" style="display:none;flex-direction:column;gap:8px">
+      <textarea id="importText" placeholder="paste a list here, one task per line, e.g.&#10;- finish captions&#10;  - add timestamps&#10;- export video&#10;- post to instagram" style="width:100%;min-height:90px;font-size:12px;padding:8px;border:1px solid #ddd;border-radius:6px;outline:none;font-family:inherit;color:#1a1a1a;background:#fff;resize:vertical"></textarea>
+      <div style="display:flex;gap:8px">
+        <button class="task-add-btn" id="importBtn">import tasks</button>
+        <button class="task-clear-btn" id="cancelImportBtn">cancel</button>
+      </div>
+    </div>
+
+    <div class="task-hint">tap a task name to set it as your active timer task &middot; drag onto another task to nest it &middot; use &#8593; on a subtask to make it its own task &middot; click &#9734; to cycle priority</div>
+    <div style="display:flex;gap:14px;justify-content:center">
+      <button class="task-clear-btn" id="sortPriorityBtn">sort by priority</button>
+      <button class="task-clear-btn" id="clearDoneBtn">clear completed</button>
+    </div>
+
+    <div style="border-top:1px solid #b2dcc2;padding-top:10px;display:flex;flex-direction:column;gap:8px">
+      <button class="task-clear-btn" id="toggleTemplates" style="align-self:flex-start;text-align:left">&#9658; templates</button>
+      <div class="template-row" id="templateRow" style="display:none">
+        <span class="task-hint" id="noTemplatesMsg">no saved templates yet</span>
+      </div>
+      <button class="task-clear-btn" id="saveTemplateBtn" style="text-align:left;display:none">+ save current list as template</button>
+      <span class="task-hint" id="templateHint" style="display:none">tap the dot to recolor &middot; drag chips to reorder</span>
+    </div>
+
+    <div style="border-top:1px solid #b2dcc2;padding-top:10px;display:flex;flex-direction:column;gap:8px">
+      <div class="color-picker-label">timer color theme</div>
+      <div class="color-picker-row" id="colorPicker">
+        <div class="color-swatch selected" data-bg="#e8f5ee" data-border="#b2dcc2" data-text="#1a6b38" data-label="#7abf93" data-bar="#b2dcc2" style="background:#e8f5ee;border-color:#2d9e4f" title="green"></div>
+        <div class="color-swatch" data-bg="#e8f0fb" data-border="#b2c8f0" data-text="#2a4a9e" data-label="#7a9abf" data-bar="#b2c8f0" style="background:#e8f0fb" title="blue"></div>
+        <div class="color-swatch" data-bg="#fdf0e8" data-border="#f0c8a0" data-text="#8b4a1a" data-label="#c89a70" data-bar="#f0c8a0" style="background:#fdf0e8" title="orange"></div>
+        <div class="color-swatch" data-bg="#f5e8f5" data-border="#d0a8d8" data-text="#6a2a7a" data-label="#a87ab8" data-bar="#d0a8d8" style="background:#f5e8f5" title="purple"></div>
+        <div class="color-swatch" data-bg="#fef8e8" data-border="#e8d080" data-text="#7a6010" data-label="#c0a840" data-bar="#e8d080" style="background:#fef8e8" title="yellow"></div>
+        <div class="color-swatch" data-bg="#fde8ee" data-border="#f0a8b8" data-text="#8b1a3a" data-label="#c87a90" data-bar="#f0a8b8" style="background:#fde8ee" title="pink"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="new-day-row">
+    <button class="new-day-btn" id="newDayBtn">start a new day (resets trackers &amp; sessions)</button>
+  </div>
+
+  <div class="done-msg" id="done"></div>
+</div>
+
+<script>
+var TOTAL = 25 * 60;
+var remaining = TOTAL;
+var timerInterval = null;
+var running = false;
+var isBreak = false;
+var distractions = 0;
+var urges = 0;
+var sessions = 0;
+var trackers = [];
+var breathInterval = null;
+var breathActive = false;
+var bellMuted = false;
+var noiseOn = false;
+var noiseSource = null;
+var noiseGainNode = null;
+var whiteOn = false;
+var whiteSource = null;
+var whiteGainNode = null;
+var audioCtx = null;
+var activeTaskDue = '';
+
+var mantras = [
+  "you are here. this moment is enough.",
+  "notice the resistance. let it pass like a cloud.",
+  "your attention is the work. bring it back, gently.",
+  "progress lives in the present, not the outcome.",
+  "each return to focus is a small act of courage.",
+  "you don't have to feel ready. just begin again.",
+  "the mind wanders. that's okay. so does the river.",
+  "you're doing it. one breath, one moment at a time."
+];
+
+var breakMantras = [
+  "rest is part of the work.",
+  "let your eyes look far away for a moment.",
+  "stretch, sip some water, breathe.",
+  "you earned this. enjoy it.",
+  "no guilt. this is recovery time."
+];
+
+function fmt(s) {
+  var m = Math.floor(s / 60);
+  var sec = s % 60;
+  return (m < 10 ? '0' : '') + m + ':' + (sec < 10 ? '0' : '') + sec;
+}
+
+function setDisplay(secs) {
+  document.getElementById('display').textContent = fmt(secs);
+  document.getElementById('stickyTime').textContent = fmt(secs);
+}
+
+function setProgress(pct) {
+  document.getElementById('fill').style.width = pct + '%';
+  document.getElementById('stickyFill').style.width = pct + '%';
+}
+
+function setTime(mins, btn) {
+  if (running) return;
+  isBreak = false;
+  TOTAL = mins * 60;
+  remaining = TOTAL;
+  setDisplay(TOTAL);
+  setProgress(0);
+  document.getElementById('mantra').textContent = mantras[0];
+  var btns = document.querySelectorAll('.time-btn');
+  for (var i = 0; i < btns.length; i++) btns[i].classList.remove('active');
+  if (btn) btn.classList.add('active');
+  updateSealVisibility(mins);
+}
+
+function updateSealVisibility(mins) {
+  var row = document.getElementById('sealTriggerRow');
+  row.style.display = 'flex';
+}
+
+function setCustomTime() {
+  if (running) return;
+  var val = parseInt(document.getElementById('customMins').value);
+  if (!val || val < 1 || val > 180) return;
+  setTime(val, null);
+  document.getElementById('customMins').value = '';
+}
+
+// Seal ritual
+var sealCtx = null;
+var sealDrawing = false;
+var sealHasDrawn = false;
+
+function initSealCanvas() {
+  var canvas = document.getElementById('sealCanvas');
+  sealCtx = canvas.getContext('2d');
+  sealCtx.lineCap = 'round';
+  sealCtx.lineJoin = 'round';
+  sealCtx.lineWidth = 3;
+  sealCtx.strokeStyle = '#7a6010';
+  clearSealCanvas();
+
+  function getPos(e) {
+    var rect = canvas.getBoundingClientRect();
+    var clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    var clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    var scaleX = canvas.width / rect.width;
+    var scaleY = canvas.height / rect.height;
+    return { x: (clientX - rect.left) * scaleX, y: (clientY - rect.top) * scaleY };
+  }
+
+  function start(e) {
+    e.preventDefault();
+    sealDrawing = true;
+    sealHasDrawn = true;
+    var pos = getPos(e);
+    sealCtx.beginPath();
+    sealCtx.moveTo(pos.x, pos.y);
+  }
+  function move(e) {
+    if (!sealDrawing) return;
+    e.preventDefault();
+    var pos = getPos(e);
+    sealCtx.lineTo(pos.x, pos.y);
+    sealCtx.stroke();
+  }
+  function end(e) {
+    sealDrawing = false;
+  }
+
+  canvas.addEventListener('mousedown', start);
+  canvas.addEventListener('mousemove', move);
+  canvas.addEventListener('mouseup', end);
+  canvas.addEventListener('mouseleave', end);
+  canvas.addEventListener('touchstart', start);
+  canvas.addEventListener('touchmove', move);
+  canvas.addEventListener('touchend', end);
+}
+
+function clearSealCanvas() {
+  if (!sealCtx) return;
+  sealCtx.fillStyle = '#fffdf7';
+  sealCtx.fillRect(0, 0, sealCtx.canvas.width, sealCtx.canvas.height);
+  sealHasDrawn = false;
+}
+
+function openSealModal() {
+  document.getElementById('sealModalOverlay').style.display = 'flex';
+  document.getElementById('sealBtnRow').style.display = 'flex';
+  document.getElementById('sealConfirmedMsg').style.display = 'none';
+  document.getElementById('sealCanvasWrap').classList.remove('stamping');
+  document.getElementById('sealGlow').classList.remove('fire');
+  document.getElementById('sealCommitmentInput').value = '';
+  if (!sealCtx) initSealCanvas();
+  clearSealCanvas();
+}
+
+function closeSealModal() {
+  document.getElementById('sealModalOverlay').style.display = 'none';
+}
+
+function confirmSeal() {
+  if (!sealHasDrawn) {
+    alert('Draw something first, even a simple mark counts.');
+    return;
+  }
+  var wrap = document.getElementById('sealCanvasWrap');
+  var glow = document.getElementById('sealGlow');
+  var btnRow = document.getElementById('sealBtnRow');
+  var msg = document.getElementById('sealConfirmedMsg');
+  var commitment = document.getElementById('sealCommitmentInput').value.trim();
+
+  btnRow.style.display = 'none';
+  wrap.classList.add('stamping');
+  glow.classList.add('fire');
+
+  setTimeout(function() {
+    msg.style.display = 'block';
+  }, 500);
+
+  setTimeout(function() {
+    placeActiveSeal(commitment);
+    closeSealModal();
+    startTimer();
+  }, 1300);
+}
+
+function placeActiveSeal(commitment) {
+  var srcCanvas = document.getElementById('sealCanvas');
+  var dstCanvas = document.getElementById('activeSealCanvas');
+  var dstCtx = dstCanvas.getContext('2d');
+  dstCtx.clearRect(0, 0, dstCanvas.width, dstCanvas.height);
+  dstCtx.drawImage(srcCanvas, 0, 0, dstCanvas.width, dstCanvas.height);
+
+  var commitEl = document.getElementById('activeSealCommitment');
+  commitEl.textContent = commitment ? '"' + commitment + '"' : '';
+
+  document.getElementById('activeSealDisplay').style.display = 'flex';
+}
+
+function hideActiveSeal() {
+  document.getElementById('activeSealDisplay').style.display = 'none';
+}
+
+function celebrateSeal() {
+  var el = document.getElementById('activeSealDisplay');
+  if (el.style.display === 'none') return;
+  el.classList.remove('celebrate');
+  void el.offsetWidth;
+  el.classList.add('celebrate');
+}
+
+function initSealDrag() {
+  var el = document.getElementById('activeSealDisplay');
+  var handle = el.querySelector('.active-seal-drag-handle');
+  var dragging = false;
+  var offsetX = 0, offsetY = 0;
+
+  try {
+    var savedPos = localStorage.getItem('focusTimerSealPos');
+    if (savedPos) {
+      var pos = JSON.parse(savedPos);
+      el.style.top = pos.top + 'px';
+      el.style.left = pos.left + 'px';
+      el.style.right = 'auto';
+    }
+  } catch(e) {}
+
+  function getXY(e) {
+    if (e.touches) return { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    return { x: e.clientX, y: e.clientY };
+  }
+
+  function startDrag(e) {
+    dragging = true;
+    el.classList.add('dragging');
+    var rect = el.getBoundingClientRect();
+    var xy = getXY(e);
+    offsetX = xy.x - rect.left;
+    offsetY = xy.y - rect.top;
+    e.preventDefault();
+  }
+
+  function onDrag(e) {
+    if (!dragging) return;
+    var xy = getXY(e);
+    var newLeft = xy.x - offsetX;
+    var newTop = xy.y - offsetY;
+    var maxLeft = window.innerWidth - el.offsetWidth - 4;
+    var maxTop = window.innerHeight - el.offsetHeight - 4;
+    newLeft = Math.max(4, Math.min(newLeft, maxLeft));
+    newTop = Math.max(4, Math.min(newTop, maxTop));
+    el.style.left = newLeft + 'px';
+    el.style.top = newTop + 'px';
+    el.style.right = 'auto';
+  }
+
+  function endDrag() {
+    if (!dragging) return;
+    dragging = false;
+    el.classList.remove('dragging');
+    try {
+      var rect = el.getBoundingClientRect();
+      localStorage.setItem('focusTimerSealPos', JSON.stringify({ top: rect.top, left: rect.left }));
+    } catch(e) {}
+  }
+
+  handle.addEventListener('mousedown', startDrag);
+  handle.addEventListener('touchstart', startDrag, { passive: false });
+  document.addEventListener('mousemove', onDrag);
+  document.addEventListener('touchmove', onDrag, { passive: false });
+  document.addEventListener('mouseup', endDrag);
+  document.addEventListener('touchend', endDrag);
+}
+
+initSealDrag();
+
+function initSealResize() {
+  var el = document.getElementById('activeSealDisplay');
+  var handle = document.getElementById('sealResizeHandle');
+  var resizing = false;
+  var startX = 0, startWidth = 0;
+
+  try {
+    var savedWidth = localStorage.getItem('focusTimerSealWidth');
+    if (savedWidth) el.style.width = savedWidth + 'px';
+  } catch(e) {}
+
+  function getX(e) {
+    return e.touches ? e.touches[0].clientX : e.clientX;
+  }
+
+  function startResize(e) {
+    resizing = true;
+    el.classList.add('resizing');
+    startX = getX(e);
+    startWidth = el.getBoundingClientRect().width;
+    e.preventDefault();
+    e.stopPropagation();
+  }
+
+  function onResize(e) {
+    if (!resizing) return;
+    var dx = getX(e) - startX;
+    var newWidth = startWidth + dx;
+    newWidth = Math.max(90, Math.min(newWidth, 320));
+    el.style.width = newWidth + 'px';
+  }
+
+  function endResize() {
+    if (!resizing) return;
+    resizing = false;
+    el.classList.remove('resizing');
+    try {
+      var rect = el.getBoundingClientRect();
+      localStorage.setItem('focusTimerSealWidth', Math.round(rect.width));
+    } catch(e) {}
+  }
+
+  handle.addEventListener('mousedown', startResize);
+  handle.addEventListener('touchstart', startResize, { passive: false });
+  document.addEventListener('mousemove', onResize);
+  document.addEventListener('touchmove', onResize, { passive: false });
+  document.addEventListener('mouseup', endResize);
+  document.addEventListener('touchend', endResize);
+}
+
+initSealResize();
+
+function startBreakTimer(mins) {
+  if (running) return;
+  isBreak = true;
+  TOTAL = mins * 60;
+  remaining = TOTAL;
+  setDisplay(TOTAL);
+  setProgress(0);
+  var btns = document.querySelectorAll('.time-btn');
+  for (var i = 0; i < btns.length; i++) btns[i].classList.remove('active');
+  document.getElementById('mantra').textContent = breakMantras[0];
+  document.getElementById('stickyTask').textContent = 'break';
+  document.getElementById('stickyDue').style.display = 'none';
+  document.querySelector('.sticky-header').classList.add('on-break');
+  startTimer();
+}
+
+function updateMantra() {
+  var pool = isBreak ? breakMantras : mantras;
+  var elapsed = TOTAL - remaining;
+  var idx = Math.min(Math.floor(elapsed / (TOTAL / pool.length)), pool.length - 1);
+  document.getElementById('mantra').textContent = pool[idx];
+}
+
+var sessionEndTime = null;
+
+function startTimer() {
+  if (running) return;
+  running = true;
+  sessionEndTime = Date.now() + remaining * 1000;
+  document.getElementById('startBtn').style.display = 'none';
+  document.getElementById('pauseBtn').style.display = '';
+  document.getElementById('finishBtn').style.display = isBreak ? 'none' : '';
+  document.getElementById('done').style.display = 'none';
+  document.querySelector('.sticky-header').classList.add('running');
+  playBell();
+  timerInterval = setInterval(function() {
+    var secsLeft = Math.round((sessionEndTime - Date.now()) / 1000);
+    if (secsLeft < 0) secsLeft = 0;
+    remaining = secsLeft;
+    setDisplay(remaining);
+    setProgress((TOTAL - remaining) / TOTAL * 100);
+    updateMantra();
+    if (remaining <= 0) {
+      clearInterval(timerInterval);
+      running = false;
+      document.querySelector('.sticky-header').classList.remove('running');
+      document.getElementById('pauseBtn').style.display = 'none';
+      document.getElementById('startBtn').style.display = '';
+      document.getElementById('finishBtn').style.display = 'none';
+      playBell();
+      var d = document.getElementById('done');
+      d.style.display = 'block';
+      if (isBreak) {
+        d.textContent = "break's over. ready for another round?";
+        isBreak = false;
+        document.querySelector('.sticky-header').classList.remove('on-break');
+        document.getElementById('stickyTask').textContent = document.getElementById('taskName').value || 'my task';
+      } else {
+        addSession();
+        celebrateSeal();
+        d.textContent = (distractions === 0 && urges === 0)
+          ? "clean run. session logged automatically."
+          : "session done & logged. " + distractions + " distractions, " + urges + " urges caught.";
+      }
+      remaining = TOTAL;
+      setDisplay(remaining);
+      setProgress(0);
+    }
+  }, 1000);
+}
+
+document.addEventListener('visibilitychange', function() {
+  if (!document.hidden && running && sessionEndTime) {
+    var secsLeft = Math.round((sessionEndTime - Date.now()) / 1000);
+    if (secsLeft < 0) secsLeft = 0;
+    remaining = secsLeft;
+    setDisplay(remaining);
+    setProgress((TOTAL - remaining) / TOTAL * 100);
+    if (remaining <= 0) {
+      clearInterval(timerInterval);
+      running = false;
+      document.querySelector('.sticky-header').classList.remove('running');
+      document.getElementById('pauseBtn').style.display = 'none';
+      document.getElementById('startBtn').style.display = '';
+      document.getElementById('finishBtn').style.display = 'none';
+      playBell();
+      var d = document.getElementById('done');
+      d.style.display = 'block';
+      if (isBreak) {
+        d.textContent = "break's over. ready for another round?";
+        isBreak = false;
+        document.querySelector('.sticky-header').classList.remove('on-break');
+        document.getElementById('stickyTask').textContent = document.getElementById('taskName').value || 'my task';
+      } else {
+        addSession();
+        celebrateSeal();
+        d.textContent = (distractions === 0 && urges === 0)
+          ? "clean run. session logged automatically."
+          : "session done & logged. " + distractions + " distractions, " + urges + " urges caught.";
+      }
+      remaining = TOTAL;
+      setDisplay(remaining);
+      setProgress(0);
+    }
+  }
+});
+
+function finishEarly() {
+  if (!running && remaining === TOTAL) return;
+  clearInterval(timerInterval);
+  clearInterval(breathInterval);
+  running = false;
+  breathActive = false;
+  document.querySelector('.sticky-header').classList.remove('running');
+  document.getElementById('pauseBtn').style.display = 'none';
+  document.getElementById('startBtn').style.display = '';
+  document.getElementById('finishBtn').style.display = 'none';
+
+  if (!isBreak) {
+    addSession();
+    var d = document.getElementById('done');
+    d.style.display = 'block';
+    d.textContent = "session finished early & logged. " + distractions + " distractions, " + urges + " urges caught.";
+  }
+
+  isBreak = false;
+  document.querySelector('.sticky-header').classList.remove('on-break');
+  remaining = TOTAL;
+  setDisplay(remaining);
+  setProgress(0);
+  hideActiveSeal();
+}
+
+function pauseTimer() {
+  if (!running) return;
+  clearInterval(timerInterval);
+  running = false;
+  document.querySelector('.sticky-header').classList.remove('running');
+  document.getElementById('startBtn').style.display = '';
+  document.getElementById('pauseBtn').style.display = 'none';
+}
+
+function resetTimer() {
+  clearInterval(timerInterval);
+  clearInterval(breathInterval);
+  running = false;
+  breathActive = false;
+  var wasBreak = isBreak;
+  isBreak = false;
+  document.querySelector('.sticky-header').classList.remove('running');
+  document.querySelector('.sticky-header').classList.remove('on-break');
+  if (wasBreak) {
+    document.getElementById('stickyTask').textContent = document.getElementById('taskName').value || 'my task';
+  }
+  remaining = TOTAL;
+  distractions = 0;
+  urges = 0;
+  setDisplay(TOTAL);
+  setProgress(0);
+  document.getElementById('mantra').textContent = mantras[0];
+  document.getElementById('distractNum').textContent = '0';
+  document.getElementById('distractMsg').textContent = 'caught';
+  document.getElementById('urgeNum').textContent = '0';
+  document.getElementById('startBtn').style.display = '';
+  document.getElementById('pauseBtn').style.display = 'none';
+  document.getElementById('finishBtn').style.display = 'none';
+  document.getElementById('done').style.display = 'none';
+  document.getElementById('breathInstruction').textContent = '—';
+  document.getElementById('breathInstruction').style.opacity = '0.25';
+  document.getElementById('breathCountdown').style.opacity = '0';
+  document.getElementById('breathIdle').style.opacity = '1';
+  document.getElementById('breathRing').style.transform = 'scale(1)';
+  hideActiveSeal();
+}
+
+function addDistraction() {
+  distractions++;
+  document.getElementById('distractNum').textContent = distractions;
+  var msgs = ["1 — you noticed.", "2 — noticing is winning.", "3 — keep catching.", "4 — building awareness.", "5 — every catch counts."];
+  document.getElementById('distractMsg').textContent = distractions <= msgs.length ? msgs[distractions - 1] : distractions + " catches";
+  startBreath();
+}
+
+function addUrge() {
+  urges++;
+  document.getElementById('urgeNum').textContent = urges;
+  startBreath();
+}
+
+function startBreath() {
+  if (breathActive) return;
+  breathActive = true;
+  var ring = document.getElementById('breathRing');
+  var instruction = document.getElementById('breathInstruction');
+  var countdown = document.getElementById('breathCountdown');
+  var idle = document.getElementById('breathIdle');
+  idle.style.opacity = '0';
+  instruction.style.opacity = '1';
+  countdown.style.opacity = '1';
+  var phase = 'in';
+  var secs = 4;
+  instruction.textContent = 'breathe in';
+  countdown.textContent = '4s';
+  ring.style.transition = 'transform 4s ease-in-out';
+  ring.style.transform = 'scale(2)';
+  if (breathInterval) clearInterval(breathInterval);
+  breathInterval = setInterval(function() {
+    secs--;
+    if (secs > 0) {
+      countdown.textContent = secs + 's';
+    } else {
+      if (phase === 'in') {
+        phase = 'out';
+        secs = 4;
+        instruction.textContent = 'breathe out';
+        countdown.textContent = '4s';
+        ring.style.transform = 'scale(1)';
+      } else {
+        clearInterval(breathInterval);
+        breathActive = false;
+        instruction.textContent = 'good';
+        countdown.style.opacity = '0';
+        setTimeout(function() {
+          instruction.style.opacity = '0.25';
+          instruction.textContent = '—';
+          idle.style.opacity = '1';
+        }, 1200);
+      }
+    }
+  }, 1000);
+}
+
+// Persistent stats: sessions + generic trackers, via localStorage
+function loadStats() {
+  try {
+    var saved = localStorage.getItem('focusTimerStats');
+    if (saved) {
+      var data = JSON.parse(saved);
+      sessions = data.sessions || 0;
+    }
+  } catch(e) {}
+  document.getElementById('sessionsNum').textContent = sessions;
+  refreshSessionMsg();
+}
+
+function saveStats() {
+  try { localStorage.setItem('focusTimerStats', JSON.stringify({ sessions: sessions })); } catch(e) {}
+}
+
+function refreshSessionMsg() {
+  var sMsgs = ["first one down.", "two. building momentum.", "three. on a roll.", "four. serious focus.", "five. full day's work.", "six. you're a machine."];
+  document.getElementById('sessionsMsg').textContent = sessions === 0 ? "finish a timer to log one" : (sessions <= sMsgs.length ? sMsgs[sessions - 1] : sessions + " sessions. respect.");
+}
+
+function addSession() {
+  sessions++;
+  document.getElementById('sessionsNum').textContent = sessions;
+  refreshSessionMsg();
+  saveStats();
+}
+
+// Generic trackers (phone calls, messages, water, follows, etc.)
+function loadTrackers() {
+  try {
+    var saved = localStorage.getItem('focusTimerTrackers');
+    if (saved) {
+      trackers = JSON.parse(saved);
+    } else {
+      trackers = [{ name: 'phone calls', count: 0 }];
+    }
+  } catch(e) {
+    trackers = [{ name: 'phone calls', count: 0 }];
+  }
+  renderTrackers();
+}
+
+function saveTrackersStorage() {
+  try { localStorage.setItem('focusTimerTrackers', JSON.stringify(trackers)); } catch(e) {}
+}
+
+function trackerMsg(count) {
+  if (count === 0) return 'none yet';
+  var msgs = ["1 so far.", "2 so far.", "3 so far — moving along.", "4 so far.", "5 so far — nice pace.", "6 so far.", "7 so far — keep going.", "8 so far.", "9 so far.", "10 so far — great tracking."];
+  return count <= msgs.length ? msgs[count - 1] : count + " so far today";
+}
+
+function renderTrackers() {
+  var list = document.getElementById('trackersList');
+  list.innerHTML = '';
+  for (var i = 0; i < trackers.length; i++) {
+    (function(tracker, idx) {
+      var card = document.createElement('div');
+      card.className = 'tracker-card';
+
+      if (trackers.length > 1) {
+        var removeBtn = document.createElement('button');
+        removeBtn.className = 'tracker-remove-btn';
+        removeBtn.innerHTML = '&#10005;';
+        removeBtn.title = 'remove this tracker';
+        removeBtn.addEventListener('click', function() {
+          if (!confirm('Remove the "' + tracker.name + '" tracker?')) return;
+          trackers.splice(idx, 1);
+          saveTrackersStorage();
+          renderTrackers();
+        });
+        card.appendChild(removeBtn);
+      }
+
+      var nameRow = document.createElement('div');
+      nameRow.className = 'tracker-name-row';
+      var nameInput = document.createElement('input');
+      nameInput.className = 'tracker-name';
+      nameInput.type = 'text';
+      nameInput.value = tracker.name;
+      nameInput.maxLength = 40;
+      nameInput.addEventListener('change', function() {
+        var v = this.value.trim();
+        tracker.name = v || 'tracker';
+        this.value = tracker.name;
+        saveTrackersStorage();
+      });
+      nameRow.appendChild(nameInput);
+      card.appendChild(nameRow);
+
+      var num = document.createElement('div');
+      num.className = 'tracker-num';
+      num.textContent = tracker.count;
+      card.appendChild(num);
+
+      var sub = document.createElement('div');
+      sub.className = 'tracker-sub';
+      sub.textContent = trackerMsg(tracker.count);
+      card.appendChild(sub);
+
+      var btnRow = document.createElement('div');
+      btnRow.className = 'tracker-btn-row';
+      var addBtn = document.createElement('button');
+      addBtn.textContent = '+ log one';
+      addBtn.addEventListener('click', function() {
+        tracker.count++;
+        num.textContent = tracker.count;
+        sub.textContent = trackerMsg(tracker.count);
+        saveTrackersStorage();
+      });
+      btnRow.appendChild(addBtn);
+      card.appendChild(btnRow);
+
+      var resetLink = document.createElement('button');
+      resetLink.className = 'tracker-reset-link';
+      resetLink.textContent = 'reset';
+      resetLink.addEventListener('click', function() {
+        tracker.count = 0;
+        num.textContent = '0';
+        sub.textContent = trackerMsg(0);
+        saveTrackersStorage();
+      });
+      card.appendChild(resetLink);
+
+      list.appendChild(card);
+    })(trackers[i], i);
+  }
+}
+
+function addTracker() {
+  trackers.push({ name: 'new tracker', count: 0 });
+  saveTrackersStorage();
+  renderTrackers();
+}
+
+function resetAllTrackers() {
+  for (var i = 0; i < trackers.length; i++) trackers[i].count = 0;
+  saveTrackersStorage();
+  renderTrackers();
+}
+
+function newDay() {
+  if (!confirm('Start a new day? This resets sessions completed and all trackers to 0.')) return;
+  sessions = 0;
+  document.getElementById('sessionsNum').textContent = '0';
+  refreshSessionMsg();
+  saveStats();
+  resetAllTrackers();
+}
+
+function getAudioCtx() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  return audioCtx;
+}
+
+function playBell() {
+  if (bellMuted) return;
+  var vol = parseFloat(document.getElementById('volumeSlider').value);
+  try {
+    var ctx = getAudioCtx();
+    var freqs = [523, 659, 784];
+    for (var i = 0; i < freqs.length; i++) {
+      (function(freq, delay) {
+        setTimeout(function() {
+          var osc = ctx.createOscillator();
+          var gain = ctx.createGain();
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(freq, ctx.currentTime);
+          gain.gain.setValueAtTime(0, ctx.currentTime);
+          gain.gain.linearRampToValueAtTime(vol, ctx.currentTime + 0.02);
+          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 2.5);
+          osc.start(ctx.currentTime);
+          osc.stop(ctx.currentTime + 2.5);
+        }, delay);
+      })(freqs[i], i * 600);
+    }
+  } catch(e) {}
+}
+
+function noiseSliderToGain(sliderVal) {
+  // squared curve + lower ceiling gives much finer control at the quiet end
+  var v = parseFloat(sliderVal);
+  if (isNaN(v) || v <= 0) return 0;
+  var maxGain = 0.5; // overall ceiling, was effectively louder before
+  return (v * v) * maxGain;
+}
+
+function startNoise() {
+  try {
+    var ctx = getAudioCtx();
+    var bufferSize = ctx.sampleRate * 4;
+    var buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    var data = buffer.getChannelData(0);
+    var lastOut = 0;
+    for (var i = 0; i < bufferSize; i++) {
+      var white = Math.random() * 2 - 1;
+      data[i] = (lastOut + (0.02 * white)) / 1.02;
+      lastOut = data[i];
+      data[i] *= 3.5;
+    }
+    noiseSource = ctx.createBufferSource();
+    noiseSource.buffer = buffer;
+    noiseSource.loop = true;
+    noiseGainNode = ctx.createGain();
+    noiseGainNode.gain.value = noiseSliderToGain(document.getElementById('noiseVolume').value);
+    noiseSource.connect(noiseGainNode);
+    noiseGainNode.connect(ctx.destination);
+    noiseSource.start();
+  } catch(e) {}
+}
+
+function stopNoise() {
+  if (noiseSource) {
+    try { noiseSource.stop(); } catch(e) {}
+    noiseSource = null;
+    noiseGainNode = null;
+  }
+}
+
+function startWhiteNoise() {
+  try {
+    var ctx = getAudioCtx();
+    var bufferSize = ctx.sampleRate * 4;
+    var buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    var data = buffer.getChannelData(0);
+    for (var i = 0; i < bufferSize; i++) {
+      data[i] = Math.random() * 2 - 1;
+    }
+    whiteSource = ctx.createBufferSource();
+    whiteSource.buffer = buffer;
+    whiteSource.loop = true;
+    whiteGainNode = ctx.createGain();
+    whiteGainNode.gain.value = noiseSliderToGain(document.getElementById('whiteVolume').value);
+    whiteSource.connect(whiteGainNode);
+    whiteGainNode.connect(ctx.destination);
+    whiteSource.start();
+  } catch(e) {}
+}
+
+function stopWhiteNoise() {
+  if (whiteSource) {
+    try { whiteSource.stop(); } catch(e) {}
+    whiteSource = null;
+    whiteGainNode = null;
+  }
+}
+
+// Task list
+var tasks = [];
+
+function loadTasks() {
+  try {
+    var saved = localStorage.getItem('focusTimerTasks');
+    if (saved) tasks = JSON.parse(saved);
+  } catch(e) { tasks = []; }
+  renderTasks();
+}
+
+function saveTasks() {
+  try { localStorage.setItem('focusTimerTasks', JSON.stringify(tasks)); } catch(e) {}
+}
+
+// Templates
+var templates = [];
+
+function loadTemplates() {
+  try {
+    var saved = localStorage.getItem('focusTimerTemplates');
+    if (saved) templates = JSON.parse(saved);
+  } catch(e) { templates = []; }
+  renderTemplates();
+}
+
+function saveTemplatesStorage() {
+  try { localStorage.setItem('focusTimerTemplates', JSON.stringify(templates)); } catch(e) {}
+}
+
+function renderTemplates() {
+  var row = document.getElementById('templateRow');
+  row.innerHTML = '';
+  if (templates.length === 0) {
+    var msg = document.createElement('span');
+    msg.className = 'task-hint';
+    msg.id = 'noTemplatesMsg';
+    msg.textContent = 'no saved templates yet';
+    row.appendChild(msg);
+    return;
+  }
+
+  var tplDragSrc = null;
+
+  for (var i = 0; i < templates.length; i++) {
+    (function(tpl, idx) {
+      var chip = document.createElement('button');
+      chip.className = 'template-chip';
+      chip.draggable = true;
+      var color = tpl.color || '#ccc';
+      chip.style.borderColor = color;
+      chip.style.borderWidth = '1.5px';
+
+      var dot = document.createElement('span');
+      dot.style.cssText = 'width:9px;height:9px;border-radius:50%;display:inline-block;flex-shrink:0;cursor:pointer;background:' + color;
+      dot.title = 'change color';
+      dot.addEventListener('click', function(e) {
+        e.stopPropagation();
+        showTemplateColorPicker(tpl, dot);
+      });
+      chip.appendChild(dot);
+
+      var label = document.createElement('span');
+      label.textContent = tpl.name;
+      chip.appendChild(label);
+
+      var del = document.createElement('span');
+      del.className = 'template-chip-delete';
+      del.innerHTML = '&#10005;';
+      del.title = 'delete template';
+      del.addEventListener('click', function(e) {
+        e.stopPropagation();
+        if (!confirm('Delete the "' + tpl.name + '" template?')) return;
+        templates.splice(idx, 1);
+        saveTemplatesStorage();
+        renderTemplates();
+      });
+      chip.appendChild(del);
+
+      chip.addEventListener('click', function() {
+        showTemplateLoadModal(tpl);
+      });
+
+      chip.addEventListener('dragstart', function(e) {
+        tplDragSrc = idx;
+        chip.classList.add('dragging');
+        e.dataTransfer.effectAllowed = 'move';
+        e.stopPropagation();
+      });
+      chip.addEventListener('dragend', function() {
+        chip.classList.remove('dragging');
+      });
+      chip.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        chip.style.outline = '2px dashed #2d9e4f';
+      });
+      chip.addEventListener('dragleave', function() {
+        chip.style.outline = '';
+      });
+      chip.addEventListener('drop', function(e) {
+        e.preventDefault();
+        chip.style.outline = '';
+        if (tplDragSrc === null || tplDragSrc === idx) return;
+        var moved = templates.splice(tplDragSrc, 1)[0];
+        var targetIdx = idx;
+        if (tplDragSrc < idx) targetIdx--;
+        templates.splice(targetIdx, 0, moved);
+        saveTemplatesStorage();
+        renderTemplates();
+      });
+
+      row.appendChild(chip);
+    })(templates[i], i);
+  }
+}
+
+function showTemplateColorPicker(tpl, anchorEl) {
+  var colors = ['#2d9e4f', '#2a4a9e', '#c98a3a', '#8b4a9e', '#c9a83a', '#c9456a', '#666'];
+  var existing = document.getElementById('tplColorPopup');
+  if (existing) existing.remove();
+
+  var popup = document.createElement('div');
+  popup.id = 'tplColorPopup';
+  popup.style.cssText = 'position:absolute;background:#fff;border:1px solid #ddd;border-radius:10px;padding:8px;display:flex;gap:6px;box-shadow:0 4px 12px rgba(0,0,0,0.12);z-index:300';
+
+  var rect = anchorEl.getBoundingClientRect();
+  popup.style.top = (rect.bottom + window.scrollY + 6) + 'px';
+  popup.style.left = (rect.left + window.scrollX - 4) + 'px';
+
+  colors.forEach(function(c) {
+    var sw = document.createElement('div');
+    sw.style.cssText = 'width:18px;height:18px;border-radius:50%;cursor:pointer;background:' + c + ';border:2px solid ' + (tpl.color === c ? '#1a1a1a' : 'transparent');
+    sw.addEventListener('click', function(e) {
+      e.stopPropagation();
+      tpl.color = c;
+      saveTemplatesStorage();
+      renderTemplates();
+      popup.remove();
+    });
+    popup.appendChild(sw);
+  });
+
+  document.body.appendChild(popup);
+
+  setTimeout(function() {
+    document.addEventListener('click', function closePopup(e) {
+      if (!popup.contains(e.target)) {
+        popup.remove();
+        document.removeEventListener('click', closePopup);
+      }
+    });
+  }, 0);
+}
+
+function showTemplateLoadModal(tpl) {
+  var overlay = document.createElement('div');
+  overlay.className = 'template-modal-overlay';
+
+  var modal = document.createElement('div');
+  modal.className = 'template-modal';
+
+  var title = document.createElement('div');
+  title.className = 'template-modal-title';
+  title.textContent = '"' + tpl.name + '"';
+
+  var sub = document.createElement('div');
+  sub.className = 'template-modal-sub';
+  sub.textContent = 'how do you want to load this template?';
+
+  var addBtn = document.createElement('button');
+  addBtn.className = 'template-modal-btn primary';
+  addBtn.textContent = 'add to current list';
+  addBtn.addEventListener('click', function() {
+    var cloned = JSON.parse(JSON.stringify(tpl.tasks));
+    tasks = tasks.concat(cloned);
+    saveTasks();
+    renderTasks();
+    overlay.remove();
+  });
+
+  var replaceBtn = document.createElement('button');
+  replaceBtn.className = 'template-modal-btn';
+  replaceBtn.textContent = 'replace current list';
+  replaceBtn.addEventListener('click', function() {
+    if (tasks.length > 0 && !confirm('This will remove your current tasks and load "' + tpl.name + '" instead. Continue?')) return;
+    var cloned = JSON.parse(JSON.stringify(tpl.tasks));
+    tasks = cloned;
+    saveTasks();
+    renderTasks();
+    overlay.remove();
+  });
+
+  var cancelBtn = document.createElement('button');
+  cancelBtn.className = 'template-modal-btn cancel';
+  cancelBtn.textContent = 'cancel';
+  cancelBtn.addEventListener('click', function() {
+    overlay.remove();
+  });
+
+  modal.appendChild(title);
+  modal.appendChild(sub);
+  modal.appendChild(addBtn);
+  modal.appendChild(replaceBtn);
+  modal.appendChild(cancelBtn);
+  overlay.appendChild(modal);
+
+  overlay.addEventListener('click', function(e) {
+    if (e.target === overlay) overlay.remove();
+  });
+
+  document.body.appendChild(overlay);
+}
+
+function saveCurrentAsTemplate() {
+  if (tasks.length === 0) {
+    alert('Add some tasks first, then save them as a template.');
+    return;
+  }
+  var name = prompt('Name this template (e.g. "video edit" or "reception shift"):');
+  if (!name) return;
+  name = name.trim();
+  if (!name) return;
+  templates.push({ name: name, tasks: JSON.parse(JSON.stringify(tasks)), color: '#2d9e4f' });
+  saveTemplatesStorage();
+  renderTemplates();
+}
+
+function fmtDue(due) {
+  if (!due) return '';
+  var parts = due.split(':');
+  var h = parseInt(parts[0]);
+  var m = parts[1];
+  var ampm = h >= 12 ? 'pm' : 'am';
+  var h12 = h % 12;
+  if (h12 === 0) h12 = 12;
+  return 'due ' + h12 + ':' + m + ampm;
+}
+
+function renderTasks() {
+  var list = document.getElementById('taskList');
+  var empty = document.getElementById('taskEmpty');
+  list.innerHTML = '';
+
+  if (tasks.length === 0) {
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+
+  var dragSrcIdx = null;
+  var dragSrcType = null; // 'task' or 'subtask'
+  var dragSrcParentIdx = null; // for subtasks, index of parent task
+  var dragSrcSubIdx = null; // for subtasks, index within parent's subtasks
+
+  for (var k = 0; k < tasks.length; k++) {
+    (function(task, idx) {
+      var item = document.createElement('div');
+      item.className = 'task-item';
+      item.draggable = true;
+
+      item.addEventListener('dragstart', function(e) {
+        dragSrcIdx = idx;
+        dragSrcType = 'task';
+        item.classList.add('dragging');
+        e.dataTransfer.effectAllowed = 'move';
+      });
+
+      item.addEventListener('dragend', function() {
+        item.classList.remove('dragging');
+        list.classList.remove('list-drop-target');
+        var items = list.querySelectorAll('.task-item');
+        for (var z = 0; z < items.length; z++) {
+          items[z].classList.remove('drag-over-top', 'drag-over-bottom', 'drag-over-middle');
+        }
+      });
+
+      item.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        var rect = item.getBoundingClientRect();
+        var topZone = rect.top + rect.height * 0.25;
+        var bottomZone = rect.top + rect.height * 0.75;
+        item.classList.remove('drag-over-top', 'drag-over-bottom', 'drag-over-middle');
+        if (e.clientY < topZone) {
+          item.classList.add('drag-over-top');
+        } else if (e.clientY > bottomZone) {
+          item.classList.add('drag-over-bottom');
+        } else {
+          item.classList.add('drag-over-middle');
+        }
+      });
+
+      item.addEventListener('dragleave', function() {
+        item.classList.remove('drag-over-top', 'drag-over-bottom', 'drag-over-middle');
+      });
+
+      item.addEventListener('drop', function(e) {
+        e.preventDefault();
+        if (dragSrcType === 'task') {
+          if (dragSrcIdx === null || dragSrcIdx === idx) return;
+          var rect = item.getBoundingClientRect();
+          var topZone = rect.top + rect.height * 0.25;
+          var bottomZone = rect.top + rect.height * 0.75;
+
+          if (e.clientY >= topZone && e.clientY <= bottomZone) {
+            var movedTask = tasks.splice(dragSrcIdx, 1)[0];
+            var targetTask = (dragSrcIdx < idx) ? tasks[idx - 1] : tasks[idx];
+            if (!targetTask.subtasks) targetTask.subtasks = [];
+            targetTask.subtasks.push({ text: movedTask.text, done: movedTask.done });
+            saveTasks();
+            renderTasks();
+            return;
+          }
+
+          var insertAfter = e.clientY >= bottomZone;
+          var moved = tasks.splice(dragSrcIdx, 1)[0];
+          var targetIdx = idx;
+          if (dragSrcIdx < idx) targetIdx--;
+          if (insertAfter) targetIdx++;
+          tasks.splice(targetIdx, 0, moved);
+          saveTasks();
+          renderTasks();
+        } else if (dragSrcType === 'subtask') {
+          // a subtask was dropped onto this task: move it into this task's subtasks
+          var parent = tasks[dragSrcParentIdx];
+          var movedSub = parent.subtasks.splice(dragSrcSubIdx, 1)[0];
+          if (!task.subtasks) task.subtasks = [];
+          task.subtasks.push(movedSub);
+          saveTasks();
+          renderTasks();
+        }
+      });
+
+      var handle = document.createElement('span');
+      handle.className = 'task-drag-handle';
+      handle.innerHTML = '&#8942;&#8942;';
+      handle.title = 'drag to reorder';
+
+      var cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.checked = task.done;
+      cb.addEventListener('change', function() {
+        tasks[idx].done = this.checked;
+        saveTasks();
+        renderTasks();
+      });
+
+      var star = document.createElement('button');
+      var priority = task.priority || (task.starred ? 'high' : 'none');
+      star.className = 'task-star' + (priority === 'high' ? ' starred' : priority === 'medium' ? ' starred-medium' : '');
+      star.innerHTML = priority === 'none' ? '&#9734;' : '&#9733;';
+      star.title = priority === 'none' ? 'set priority' : (priority === 'high' ? 'high priority (click for medium)' : 'medium priority (click to clear)');
+      star.addEventListener('click', function() {
+        var cur = tasks[idx].priority || (tasks[idx].starred ? 'high' : 'none');
+        var next = cur === 'none' ? 'high' : (cur === 'high' ? 'medium' : 'none');
+        tasks[idx].priority = next;
+        tasks[idx].starred = (next === 'high');
+        saveTasks();
+        renderTasks();
+      });
+
+      var main = document.createElement('div');
+      main.className = 'task-item-main';
+      main.title = 'tap to set as active task';
+
+      var text = document.createElement('span');
+      text.className = 'task-item-text' + (task.done ? ' done' : '');
+      text.textContent = task.text;
+      main.appendChild(text);
+
+      if (task.due) {
+        var due = document.createElement('span');
+        due.className = 'task-item-due';
+        due.textContent = fmtDue(task.due);
+        main.appendChild(due);
+      }
+
+      main.addEventListener('click', function() {
+        document.getElementById('taskName').value = task.text;
+        document.getElementById('stickyTask').textContent = task.text;
+        var dueEl = document.getElementById('stickyDue');
+        if (task.due) {
+          dueEl.textContent = fmtDue(task.due);
+          dueEl.style.display = 'block';
+        } else {
+          dueEl.style.display = 'none';
+        }
+      });
+
+      var editBtn = document.createElement('button');
+      editBtn.className = 'task-edit-btn';
+      editBtn.innerHTML = '&#9998;';
+      editBtn.title = 'edit task';
+      editBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        var input = document.createElement('input');
+        input.type = 'text';
+        input.className = 'task-edit-input';
+        input.value = task.text;
+        input.maxLength = 100;
+        main.innerHTML = '';
+        main.appendChild(input);
+        input.focus();
+        input.select();
+
+        function finishEdit() {
+          var newText = input.value.trim();
+          if (newText) {
+            tasks[idx].text = newText;
+            saveTasks();
+          }
+          renderTasks();
+        }
+
+        input.addEventListener('keydown', function(ev) {
+          if (ev.key === 'Enter') finishEdit();
+          if (ev.key === 'Escape') renderTasks();
+        });
+        input.addEventListener('blur', finishEdit);
+        input.addEventListener('click', function(ev) { ev.stopPropagation(); });
+      });
+
+      var del = document.createElement('button');
+      del.className = 'task-delete';
+      del.textContent = '×';
+      del.addEventListener('click', function() {
+        tasks.splice(idx, 1);
+        saveTasks();
+        renderTasks();
+      });
+
+      var subToggle = document.createElement('button');
+      subToggle.className = 'subtask-toggle';
+      subToggle.innerHTML = '&#43;';
+      subToggle.title = 'add subtask';
+      subToggle.addEventListener('click', function() {
+        var addRow = document.createElement('div');
+        addRow.className = 'subtask-add-row';
+        var subInput = document.createElement('input');
+        subInput.type = 'text';
+        subInput.placeholder = 'subtask...';
+        subInput.maxLength = 100;
+        var subAddBtn = document.createElement('button');
+        subAddBtn.className = 'subtask-add-btn';
+        subAddBtn.textContent = 'add';
+
+        function addSub() {
+          var t = subInput.value.trim();
+          if (!t) return;
+          task.subtasks.push({ text: t, done: false });
+          saveTasks();
+          renderTasks();
+        }
+
+        subAddBtn.addEventListener('click', addSub);
+        subInput.addEventListener('keydown', function(ev) {
+          if (ev.key === 'Enter') addSub();
+        });
+
+        addRow.appendChild(subInput);
+        addRow.appendChild(subAddBtn);
+        item.appendChild(addRow);
+        subInput.focus();
+      });
+
+      var row = document.createElement('div');
+      row.className = 'task-row';
+      row.appendChild(handle);
+      row.appendChild(cb);
+      row.appendChild(star);
+      row.appendChild(main);
+      row.appendChild(subToggle);
+      row.appendChild(editBtn);
+      row.appendChild(del);
+      item.appendChild(row);
+
+      if (!task.subtasks) task.subtasks = [];
+
+      if (task.subtasks.length > 0) {
+        var subList = document.createElement('div');
+        subList.className = 'subtask-list';
+        for (var si = 0; si < task.subtasks.length; si++) {
+          (function(sub, sidx) {
+            var subItem = document.createElement('div');
+            subItem.className = 'subtask-item';
+            subItem.draggable = true;
+
+            subItem.addEventListener('dragstart', function(e) {
+              dragSrcType = 'subtask';
+              dragSrcParentIdx = idx;
+              dragSrcSubIdx = sidx;
+              subItem.classList.add('dragging');
+              e.dataTransfer.effectAllowed = 'move';
+              e.stopPropagation();
+            });
+
+            subItem.addEventListener('dragend', function(e) {
+              subItem.classList.remove('dragging');
+              list.classList.remove('list-drop-target');
+              var subs = subList.querySelectorAll('.subtask-item');
+              for (var z = 0; z < subs.length; z++) {
+                subs[z].classList.remove('drag-over-top', 'drag-over-bottom');
+              }
+              e.stopPropagation();
+            });
+
+            subItem.addEventListener('dragover', function(e) {
+              if (dragSrcType !== 'subtask') return;
+              e.preventDefault();
+              e.stopPropagation();
+              e.dataTransfer.dropEffect = 'move';
+              var rect = subItem.getBoundingClientRect();
+              var midpoint = rect.top + rect.height / 2;
+              subItem.classList.remove('drag-over-top', 'drag-over-bottom');
+              if (e.clientY < midpoint) {
+                subItem.classList.add('drag-over-top');
+              } else {
+                subItem.classList.add('drag-over-bottom');
+              }
+            });
+
+            subItem.addEventListener('dragleave', function(e) {
+              subItem.classList.remove('drag-over-top', 'drag-over-bottom');
+              e.stopPropagation();
+            });
+
+            subItem.addEventListener('drop', function(e) {
+              if (dragSrcType !== 'subtask') return;
+              e.preventDefault();
+              e.stopPropagation();
+              subItem.classList.remove('drag-over-top', 'drag-over-bottom');
+
+              var rect = subItem.getBoundingClientRect();
+              var midpoint = rect.top + rect.height / 2;
+              var insertAfter = e.clientY >= midpoint;
+
+              var sourceParent = tasks[dragSrcParentIdx];
+              var movedSub = sourceParent.subtasks.splice(dragSrcSubIdx, 1)[0];
+
+              var targetParent = task;
+              var targetIdx = sidx;
+              // if moving within the same parent and source was before target, account for the shift
+              if (sourceParent === targetParent && dragSrcSubIdx < sidx) targetIdx--;
+              if (insertAfter) targetIdx++;
+              if (!targetParent.subtasks) targetParent.subtasks = [];
+              targetParent.subtasks.splice(targetIdx, 0, movedSub);
+
+              saveTasks();
+              renderTasks();
+            });
+
+            var subCb = document.createElement('input');
+            subCb.type = 'checkbox';
+            subCb.checked = sub.done;
+            subCb.addEventListener('change', function() {
+              task.subtasks[sidx].done = this.checked;
+              saveTasks();
+              renderTasks();
+            });
+
+            var subText = document.createElement('span');
+            subText.className = 'subtask-text' + (sub.done ? ' done' : '');
+            subText.textContent = sub.text;
+            subText.title = 'double-click to set as active task';
+            subText.addEventListener('dblclick', function() {
+              var combined = task.text + ': ' + sub.text;
+              document.getElementById('taskName').value = combined;
+              document.getElementById('stickyTask').textContent = combined;
+              document.getElementById('stickyDue').style.display = 'none';
+            });
+
+            var subEditBtn = document.createElement('button');
+            subEditBtn.className = 'task-edit-btn';
+            subEditBtn.innerHTML = '&#9998;';
+            subEditBtn.title = 'edit subtask';
+            subEditBtn.addEventListener('click', function() {
+              var subInputEdit = document.createElement('input');
+              subInputEdit.type = 'text';
+              subInputEdit.className = 'task-edit-input';
+              subInputEdit.value = sub.text;
+              subInputEdit.maxLength = 100;
+              subItem.innerHTML = '';
+              subItem.appendChild(subInputEdit);
+              subInputEdit.focus();
+              subInputEdit.select();
+
+              function finishSubEdit() {
+                var newText = subInputEdit.value.trim();
+                if (newText) {
+                  task.subtasks[sidx].text = newText;
+                  saveTasks();
+                }
+                renderTasks();
+              }
+
+              subInputEdit.addEventListener('keydown', function(ev) {
+                if (ev.key === 'Enter') finishSubEdit();
+                if (ev.key === 'Escape') renderTasks();
+              });
+              subInputEdit.addEventListener('blur', finishSubEdit);
+            });
+
+            var subPromote = document.createElement('button');
+            subPromote.className = 'task-edit-btn';
+            subPromote.innerHTML = '&#8593;';
+            subPromote.title = 'make this its own task';
+            subPromote.addEventListener('click', function() {
+              var movedSub = task.subtasks.splice(sidx, 1)[0];
+              tasks.push({ text: movedSub.text, done: movedSub.done, starred: false, due: '', subtasks: [] });
+              saveTasks();
+              renderTasks();
+            });
+
+            var subDel = document.createElement('button');
+            subDel.className = 'subtask-delete';
+            subDel.textContent = '×';
+            subDel.addEventListener('click', function() {
+              task.subtasks.splice(sidx, 1);
+              saveTasks();
+              renderTasks();
+            });
+
+            subItem.appendChild(subCb);
+            subItem.appendChild(subText);
+            subItem.appendChild(subPromote);
+            subItem.appendChild(subEditBtn);
+            subItem.appendChild(subDel);
+            subList.appendChild(subItem);
+          })(task.subtasks[si], si);
+        }
+        item.appendChild(subList);
+      }
+
+      list.appendChild(item);
+    })(tasks[k], k);
+  }
+}
+
+function quickAddTask() {
+  var input = document.getElementById('quickAddInput');
+  var dueInput = document.getElementById('taskDue');
+  var text = input.value.trim();
+  if (!text) return;
+  tasks.push({ text: text, done: false, starred: false, priority: 'none', due: dueInput.value || '', subtasks: [] });
+  saveTasks();
+  renderTasks();
+  input.value = '';
+  dueInput.value = '';
+  // re-focus the new quick add box after re-render replaces it
+  setTimeout(function() {
+    var freshInput = document.getElementById('quickAddInput');
+    if (freshInput) freshInput.focus();
+  }, 0);
+}
+
+function cleanLine(line) {
+  // strip markdown bullets, checkboxes, numbered list markers, and leading/trailing whitespace
+  var t = line.replace(/\t/g, '    ');
+  var stripped = t.replace(/^\s*/, '');
+  stripped = stripped.replace(/^[-*+]\s*\[[ xX]\]\s*/, ''); // - [ ] or - [x]
+  stripped = stripped.replace(/^[-*+]\s+/, ''); // - or * or +
+  stripped = stripped.replace(/^\d+[.)]\s+/, ''); // 1. or 1)
+  stripped = stripped.replace(/\*\*(.*?)\*\*/g, '$1'); // **bold**
+  stripped = stripped.replace(/__(.*?)__/g, '$1'); // __bold__
+  stripped = stripped.replace(/(?<!\*)\*([^*]+)\*(?!\*)/g, '$1'); // *italic*
+  return stripped.trim();
+}
+
+function getIndentLevel(line) {
+  var t = line.replace(/\t/g, '    ');
+  var match = t.match(/^(\s*)/);
+  var spaces = match ? match[1].length : 0;
+  return Math.floor(spaces / 2);
+}
+
+function importTasksFromText() {
+  var raw = document.getElementById('importText').value;
+  if (!raw.trim()) return;
+  var lines = raw.split('\n');
+  var lastTopTask = null;
+  var importCount = 0;
+
+  for (var i = 0; i < lines.length; i++) {
+    var line = lines[i];
+    if (!line.trim()) continue;
+    var text = cleanLine(line);
+    if (!text) continue;
+    var indent = getIndentLevel(line);
+
+    if (indent > 0 && lastTopTask) {
+      lastTopTask.subtasks.push({ text: text, done: false });
+    } else {
+      var newTask = { text: text, done: false, starred: false, due: '', subtasks: [] };
+      tasks.push(newTask);
+      lastTopTask = newTask;
+      importCount++;
+    }
+  }
+
+  saveTasks();
+  renderTasks();
+  document.getElementById('importText').value = '';
+  document.getElementById('importPanel').style.display = 'none';
+  document.getElementById('toggleImport').style.display = '';
+}
+
+// Color themes
+var currentTheme = { bg:'#e8f5ee', border:'#b2dcc2', text:'#1a6b38', label:'#7abf93', bar:'#b2dcc2' };
+
+function applyTheme(theme) {
+  var root = document.documentElement;
+  root.style.setProperty('--theme-bg', theme.bg);
+  root.style.setProperty('--theme-border', theme.border);
+  root.style.setProperty('--theme-text', theme.text);
+  root.style.setProperty('--theme-label', theme.label);
+  root.style.setProperty('--theme-bar-bg', theme.bar);
+  document.getElementById('tasksBox').style.background = theme.bg;
+  document.getElementById('tasksBox').style.borderColor = theme.border;
+  currentTheme = theme;
+}
+
+applyTheme(currentTheme);
+loadTasks();
+loadTemplates();
+loadStats();
+loadTrackers();
+
+var swatches = document.querySelectorAll('.color-swatch');
+for (var s = 0; s < swatches.length; s++) {
+  swatches[s].addEventListener('click', function() {
+    for (var x = 0; x < swatches.length; x++) swatches[x].classList.remove('selected');
+    this.classList.add('selected');
+    applyTheme({
+      bg: this.getAttribute('data-bg'),
+      border: this.getAttribute('data-border'),
+      text: this.getAttribute('data-text'),
+      label: this.getAttribute('data-label'),
+      bar: this.getAttribute('data-bar')
+    });
+  });
+}
+
+var sealSwatches = document.querySelectorAll('.seal-color-swatch');
+for (var ss = 0; ss < sealSwatches.length; ss++) {
+  sealSwatches[ss].addEventListener('click', function() {
+    for (var x = 0; x < sealSwatches.length; x++) sealSwatches[x].classList.remove('selected');
+    this.classList.add('selected');
+    if (sealCtx) sealCtx.strokeStyle = this.getAttribute('data-color');
+  });
+}
+
+document.getElementById('taskName').addEventListener('input', function() {
+  document.getElementById('stickyTask').textContent = this.value || 'my task';
+  document.getElementById('stickyDue').style.display = 'none';
+});
+
+document.getElementById('startBtn').addEventListener('click', startTimer);
+document.getElementById('pauseBtn').addEventListener('click', pauseTimer);
+document.getElementById('resetBtn').addEventListener('click', resetTimer);
+document.getElementById('finishBtn').addEventListener('click', finishEarly);
+document.getElementById('distractBtn').addEventListener('click', addDistraction);
+document.getElementById('resetDistractBtn').addEventListener('click', function() {
+  distractions = 0;
+  document.getElementById('distractNum').textContent = '0';
+  document.getElementById('distractMsg').textContent = 'caught';
+});
+document.getElementById('urgeBtn').addEventListener('click', addUrge);
+document.getElementById('resetUrgeBtn').addEventListener('click', function() {
+  urges = 0;
+  document.getElementById('urgeNum').textContent = '0';
+});
+document.getElementById('sessionBtn').addEventListener('click', addSession);
+document.getElementById('addTrackerBtn').addEventListener('click', addTracker);
+document.getElementById('setCustomBtn').addEventListener('click', setCustomTime);
+document.getElementById('newDayBtn').addEventListener('click', newDay);
+
+document.getElementById('break5Btn').addEventListener('click', function() { startBreakTimer(5); });
+document.getElementById('break10Btn').addEventListener('click', function() { startBreakTimer(10); });
+document.getElementById('setCustomBreakBtn').addEventListener('click', function() {
+  if (running) return;
+  var val = parseInt(document.getElementById('customBreakMins').value);
+  if (!val || val < 1 || val > 60) return;
+  document.getElementById('customBreakMins').value = '';
+  startBreakTimer(val);
+});
+
+document.getElementById('sealTriggerBtn').addEventListener('click', openSealModal);
+document.getElementById('sealClearBtn').addEventListener('click', clearSealCanvas);
+document.getElementById('sealCancelBtn').addEventListener('click', closeSealModal);
+document.getElementById('sealConfirmBtn').addEventListener('click', confirmSeal);
+document.getElementById('sealModalOverlay').addEventListener('click', function(e) {
+  if (e.target === this) closeSealModal();
+});
+
+document.getElementById('toggleSound').addEventListener('click', function() {
+  var panel = document.getElementById('soundPanel');
+  var open = panel.style.display === 'flex';
+  panel.style.display = open ? 'none' : 'flex';
+  this.innerHTML = (open ? '&#9658;' : '&#9660;') + ' sound settings';
+});
+
+document.getElementById('toggleCalls').addEventListener('click', function() {
+  var box = document.getElementById('trackersBox');
+  var open = box.style.display === 'flex' || box.style.display === 'block';
+  box.style.display = open ? 'none' : 'flex';
+  this.innerHTML = (open ? '&#9658;' : '&#9660;') + ' trackers';
+});
+
+document.getElementById('toggleSessions').addEventListener('click', function() {
+  var box = document.getElementById('sessionsBox');
+  var open = box.style.display === 'flex' || box.style.display === 'block';
+  box.style.display = open ? 'none' : 'flex';
+  this.innerHTML = (open ? '&#9658;' : '&#9660;') + ' sessions completed';
+});
+
+document.getElementById('toggleTasks').addEventListener('click', function() {
+  var box = document.getElementById('tasksBox');
+  var open = box.style.display === 'flex';
+  box.style.display = open ? 'none' : 'flex';
+  this.innerHTML = (open ? '&#9658;' : '&#9660;') + ' my tasks';
+});
+
+document.getElementById('toggleImport').addEventListener('click', function() {
+  document.getElementById('importPanel').style.display = 'flex';
+  this.style.display = 'none';
+  document.getElementById('importText').focus();
+});
+
+document.getElementById('cancelImportBtn').addEventListener('click', function() {
+  document.getElementById('importText').value = '';
+  document.getElementById('importPanel').style.display = 'none';
+  document.getElementById('toggleImport').style.display = '';
+});
+
+document.getElementById('importBtn').addEventListener('click', importTasksFromText);
+
+document.getElementById('quickAddBtn').addEventListener('click', quickAddTask);
+document.getElementById('quickAddInput').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') quickAddTask();
+});
+
+document.getElementById('clearDoneBtn').addEventListener('click', function() {
+  tasks = tasks.filter(function(t) { return !t.done; });
+  saveTasks();
+  renderTasks();
+});
+
+document.getElementById('sortPriorityBtn').addEventListener('click', function() {
+  var rank = { high: 0, medium: 1, none: 2 };
+  tasks.sort(function(a, b) {
+    var pa = a.priority || (a.starred ? 'high' : 'none');
+    var pb = b.priority || (b.starred ? 'high' : 'none');
+    return rank[pa] - rank[pb];
+  });
+  saveTasks();
+  renderTasks();
+});
+
+document.getElementById('saveTemplateBtn').addEventListener('click', saveCurrentAsTemplate);
+
+document.getElementById('toggleTemplates').addEventListener('click', function() {
+  var row = document.getElementById('templateRow');
+  var saveBtn = document.getElementById('saveTemplateBtn');
+  var hint = document.getElementById('templateHint');
+  var open = row.style.display === 'flex';
+  row.style.display = open ? 'none' : 'flex';
+  saveBtn.style.display = open ? 'none' : '';
+  hint.style.display = open ? 'none' : '';
+  this.innerHTML = (open ? '&#9658;' : '&#9660;') + ' templates';
+});
+
+document.getElementById('testBellBtn').addEventListener('click', playBell);
+
+document.getElementById('bellBtn').addEventListener('click', function() {
+  bellMuted = !bellMuted;
+  this.textContent = bellMuted ? 'off' : 'on';
+  this.classList.toggle('on-bell', !bellMuted);
+});
+
+document.getElementById('noiseBtn').addEventListener('click', function() {
+  noiseOn = !noiseOn;
+  if (noiseOn) {
+    startNoise();
+    this.textContent = 'on';
+    this.classList.add('on-noise');
+  } else {
+    stopNoise();
+    this.textContent = 'off';
+    this.classList.remove('on-noise');
+  }
+});
+
+document.getElementById('noiseVolume').addEventListener('input', function() {
+  if (noiseGainNode) noiseGainNode.gain.value = noiseSliderToGain(this.value);
+});
+
+document.getElementById('whiteBtn').addEventListener('click', function() {
+  whiteOn = !whiteOn;
+  if (whiteOn) {
+    startWhiteNoise();
+    this.textContent = 'on';
+    this.style.background = '#555';
+    this.style.color = '#fff';
+    this.style.borderColor = '#555';
+  } else {
+    stopWhiteNoise();
+    this.textContent = 'off';
+    this.style.background = '';
+    this.style.color = '';
+    this.style.borderColor = '';
+  }
+});
+
+document.getElementById('whiteVolume').addEventListener('input', function() {
+  if (whiteGainNode) whiteGainNode.gain.value = noiseSliderToGain(this.value);
+});
+
+var timeBtns = document.querySelectorAll('.time-btn[data-mins]');
+for (var i = 0; i < timeBtns.length; i++) {
+  timeBtns[i].addEventListener('click', function() {
+    setTime(parseInt(this.getAttribute('data-mins')), this);
+  });
+}
+</script>
+</body>
+</html>
