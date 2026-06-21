@@ -153,30 +153,35 @@ button:active { transform: scale(0.97); }
 .trackers-box {
   width: 100%; display: flex; flex-direction: column; gap: 12px;
 }
-.trackers-list { display: flex; flex-direction: column; gap: 12px; }
+.trackers-list { display: flex; flex-wrap: wrap; gap: 10px; }
 .tracker-card {
-  width: 100%; border: 1px solid #e8e8e8; border-radius: 12px;
-  padding: 1.25rem; display: flex; flex-direction: column;
-  align-items: center; gap: 8px; background: #fff; position: relative;
+  flex: 1 1 calc(50% - 5px); min-width: 110px; border: 1px solid #e8e8e8; border-radius: 12px;
+  padding: 0.85rem; display: flex; flex-direction: column;
+  align-items: center; gap: 6px; background: #fff; position: relative;
+  cursor: grab; user-select: none;
 }
+.tracker-card.dragging { opacity: 0.4; cursor: grabbing; }
+.tracker-card.drag-over-left { box-shadow: inset 3px 0 0 #2d9e4f; }
+.tracker-card.drag-over-right { box-shadow: inset -3px 0 0 #2d9e4f; }
 .tracker-name-row { display: flex; align-items: center; gap: 6px; width: 100%; justify-content: center; }
 .tracker-name {
-  font-size: 11px; color: #999; text-transform: uppercase; letter-spacing: 0.08em;
+  font-size: 10px; color: #999; text-transform: uppercase; letter-spacing: 0.06em;
   border: none; border-bottom: 1px solid transparent; background: transparent;
-  outline: none; text-align: center; font-family: inherit; max-width: 200px;
-  padding: 1px 2px; transition: border-color 0.15s;
+  outline: none; text-align: center; font-family: inherit; max-width: 130px;
+  padding: 1px 2px; transition: border-color 0.15s; cursor: text;
 }
 .tracker-name:hover { border-bottom-color: #ddd; }
 .tracker-name:focus { border-bottom-color: #aaa; }
 .tracker-remove-btn {
-  position: absolute; top: 8px; right: 10px; font-size: 14px; color: #ccc;
+  position: absolute; top: 4px; right: 6px; font-size: 12px; color: #ccc;
   background: none; border: none; cursor: pointer; line-height: 1; padding: 2px;
 }
 .tracker-remove-btn:hover { color: #c44; }
-.tracker-num { font-size: 36px; font-weight: 500; line-height: 1; }
-.tracker-sub { font-size: 11px; color: #bbb; text-align: center; }
+.tracker-num { font-size: 28px; font-weight: 500; line-height: 1; }
+.tracker-sub { font-size: 10px; color: #bbb; text-align: center; }
 .tracker-btn-row { display: flex; gap: 8px; }
-.tracker-reset-link { font-size: 10px; color: #ccc; background: none; border: none; cursor: pointer; font-family: inherit; }
+.tracker-btn-row button { font-size: 12px; padding: 5px 10px; cursor: pointer; }
+.tracker-reset-link { font-size: 9px; color: #ccc; background: none; border: none; cursor: pointer; font-family: inherit; }
 .tracker-reset-link:hover { color: #999; }
 .done-msg { font-size: 15px; font-weight: 500; text-align: center; display: none; padding: 0.5rem 0; }
 
@@ -584,6 +589,7 @@ button:active { transform: scale(0.97); }
   <div class="trackers-box" id="trackersBox" style="display:none">
     <div class="trackers-list" id="trackersList"></div>
     <button class="task-clear-btn" id="addTrackerBtn" style="text-align:left">+ add another tracker</button>
+    <span class="task-hint">drag a tracker to reorder it</span>
   </div>
 
   <div style="width:100%;display:flex;justify-content:center">
@@ -1268,10 +1274,56 @@ function trackerMsg(count) {
 function renderTrackers() {
   var list = document.getElementById('trackersList');
   list.innerHTML = '';
+  var trackerDragSrc = null;
+
   for (var i = 0; i < trackers.length; i++) {
     (function(tracker, idx) {
       var card = document.createElement('div');
       card.className = 'tracker-card';
+      card.draggable = true;
+
+      card.addEventListener('dragstart', function(e) {
+        trackerDragSrc = idx;
+        card.classList.add('dragging');
+        e.dataTransfer.effectAllowed = 'move';
+      });
+      card.addEventListener('dragend', function() {
+        card.classList.remove('dragging');
+        var cards = list.querySelectorAll('.tracker-card');
+        for (var z = 0; z < cards.length; z++) {
+          cards[z].classList.remove('drag-over-left', 'drag-over-right');
+        }
+      });
+      card.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        var rect = card.getBoundingClientRect();
+        var midpoint = rect.left + rect.width / 2;
+        card.classList.remove('drag-over-left', 'drag-over-right');
+        if (e.clientX < midpoint) {
+          card.classList.add('drag-over-left');
+        } else {
+          card.classList.add('drag-over-right');
+        }
+      });
+      card.addEventListener('dragleave', function() {
+        card.classList.remove('drag-over-left', 'drag-over-right');
+      });
+      card.addEventListener('drop', function(e) {
+        e.preventDefault();
+        card.classList.remove('drag-over-left', 'drag-over-right');
+        if (trackerDragSrc === null || trackerDragSrc === idx) return;
+        var rect = card.getBoundingClientRect();
+        var midpoint = rect.left + rect.width / 2;
+        var insertAfter = e.clientX >= midpoint;
+        var moved = trackers.splice(trackerDragSrc, 1)[0];
+        var targetIdx = idx;
+        if (trackerDragSrc < idx) targetIdx--;
+        if (insertAfter) targetIdx++;
+        trackers.splice(targetIdx, 0, moved);
+        saveTrackersStorage();
+        renderTrackers();
+      });
 
       if (trackers.length > 1) {
         var removeBtn = document.createElement('button');
@@ -1292,6 +1344,7 @@ function renderTrackers() {
       var nameInput = document.createElement('input');
       nameInput.className = 'tracker-name';
       nameInput.type = 'text';
+      nameInput.draggable = false;
       nameInput.value = tracker.name;
       nameInput.maxLength = 40;
       nameInput.addEventListener('change', function() {
@@ -1316,7 +1369,7 @@ function renderTrackers() {
       var btnRow = document.createElement('div');
       btnRow.className = 'tracker-btn-row';
       var addBtn = document.createElement('button');
-      addBtn.textContent = '+ log one';
+      addBtn.textContent = '+ log';
       addBtn.addEventListener('click', function() {
         tracker.count++;
         num.textContent = tracker.count;
