@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Focus Timer</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⏱</text></svg>">
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body {
@@ -14,7 +15,36 @@ body {
   display: flex;
   justify-content: center;
   padding: 0 1rem 3rem;
+  background-size: cover;
+  background-position: center;
+  background-attachment: fixed;
+  transition: background-color 0.4s;
 }
+.bg-overlay {
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  z-index: -1; pointer-events: none;
+  background: rgba(249,249,248,0.82);
+  transition: opacity 0.4s;
+}
+.bg-overlay.has-bg { background: rgba(255,255,255,0.75); }
+
+.bg-picker-row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.bg-swatch {
+  width: 22px; height: 22px; border-radius: 50%; cursor: pointer;
+  border: 2px solid transparent; transition: transform 0.15s, border-color 0.15s;
+  background-size: cover; background-position: center; flex-shrink: 0;
+}
+.bg-swatch:hover { transform: scale(1.2); }
+.bg-swatch.selected { border-color: #1a1a1a; transform: scale(1.15); }
+.bg-swatch.none-swatch { background: #fff; border: 2px solid #ddd !important; font-size: 11px; color: #ccc; display: flex; align-items: center; justify-content: center; }
+.bg-upload-btn {
+  font-size: 11px; padding: 2px 8px; border: 1px dashed #ccc;
+  border-radius: 12px; background: transparent; cursor: pointer;
+  font-family: inherit; color: #aaa; transition: all 0.15s;
+}
+.bg-upload-btn:hover { border-color: #aaa; color: #666; }
+.bg-opacity-row { display: flex; align-items: center; gap: 8px; width: 100%; }
+.bg-opacity-label { font-size: 11px; color: #999; min-width: 52px; }
 .sticky-header {
   position: fixed;
   top: 0; left: 0; right: 0;
@@ -32,9 +62,9 @@ body {
 .sticky-label { font-size: 10px; color: #bbb; text-transform: uppercase; letter-spacing: 0.1em; transition: color 0.6s; }
 .sticky-header.running .sticky-label { color: var(--theme-label, #7abf93); }
 .sticky-header.on-break .sticky-label { color: #7a9abf !important; }
-.sticky-task { font-size: 26px; font-weight: 700; color: #2d9e4f; text-align: center; white-space: normal; overflow-wrap: break-word; max-width: 300px; min-width: 0; line-height: 1.2; letter-spacing: -0.5px; transition: color 0.6s; cursor: text; outline: none; border-bottom: 1.5px solid transparent; }
-.sticky-task:hover { border-bottom-color: rgba(45,158,79,0.3); }
-.sticky-task:focus { border-bottom-color: rgba(45,158,79,0.6); }
+.sticky-task { font-size: 26px; font-weight: 700; color: var(--theme-text, #4a4a4a); text-align: center; white-space: normal; overflow-wrap: break-word; max-width: 300px; min-width: 0; line-height: 1.2; letter-spacing: -0.5px; transition: color 0.6s; cursor: text; outline: none; border-bottom: 1.5px solid transparent; }
+.sticky-task:hover { border-bottom-color: rgba(0,0,0,0.15); }
+.sticky-task:focus { border-bottom-color: rgba(0,0,0,0.3); }
 .sticky-header.running .sticky-task { color: var(--theme-text, #1a6b38); }
 .sticky-header.on-break .sticky-task { color: #2a4a9e !important; }
 .sticky-due { font-size: 12px; color: #c98a3a; font-weight: 500; display: none; margin-top: 2px; }
@@ -84,6 +114,15 @@ body {
 #customMins:focus { border-color: #aaa; }
 .custom-label { font-size: 13px; color: #999; }
 .timer-display { font-size: 80px; font-weight: 400; letter-spacing: -3px; font-variant-numeric: tabular-nums; line-height: 1; }
+.timer-card {
+  width: 100%; background: rgba(255,255,255,0.88); border: 1px solid #e8e8e8;
+  border-radius: 16px; padding: 1.5rem 1.25rem;
+  display: flex; flex-direction: column; align-items: center; gap: 1.25rem;
+  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  box-shadow: 0 2px 16px rgba(0,0,0,0.06);
+  transition: background 0.4s;
+}
+body.has-background .timer-card { background: rgba(255,255,255,0.92); }
 .progress-bar { width: 100%; height: 3px; background: #e8e8e8; border-radius: 2px; overflow: hidden; }
 .progress-fill { height: 100%; background: #1a1a1a; border-radius: 2px; width: 0%; transition: width 0.8s linear; }
 .mantra { font-size: 14px; color: #999; text-align: center; line-height: 1.6; min-height: 44px; max-width: 300px; }
@@ -102,11 +141,12 @@ button:active { transform: scale(0.97); }
 .break-btn { background: #e8f0fb; border-color: #b2c8f0; color: #2a4a9e; }
 .break-btn:hover { background: #d8e6f8; }
 .toggle-btn {
-  font-size: 12px; color: #999; background: transparent;
-  border: 1px solid #e8e8e8; border-radius: 20px; padding: 4px 14px;
+  font-size: 12px; color: #666; background: rgba(255,255,255,0.92);
+  border: 1px solid #ddd; border-radius: 20px; padding: 4px 14px;
   cursor: grab; font-family: inherit; transition: all 0.15s;
+  backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
 }
-.toggle-btn:hover { background: #f5f5f5; color: #666; }
+.toggle-btn:hover { background: #fff; color: #1a1a1a; border-color: #ccc; }
 .toggle-btn:active { cursor: grabbing; }
 .sound-panel {
   width: 100%; background: #fff; border: 1px solid #e8e8e8;
@@ -189,17 +229,18 @@ button:active { transform: scale(0.97); }
 .done-msg { font-size: 15px; font-weight: 500; text-align: center; display: none; padding: 0.5rem 0; }
 
 #sectionsContainer { display: flex; flex-direction: column; gap: 1.5rem; width: 100%; }
-.section-block { display: flex; flex-direction: column; align-items: center; gap: 0.75rem; width: 100%; position: relative; }
+.section-block { display: flex; flex-direction: column; align-items: flex-end; gap: 0.75rem; width: 100%; position: relative; }
 .section-block.dragging { opacity: 0.4; }
 .section-block.drag-over-top { border-top: 3px solid #2d9e4f; padding-top: 4px; }
 .section-block.drag-over-bottom { border-bottom: 3px solid #2d9e4f; padding-bottom: 4px; }
 .section-handle { display: none; }
 .section-block[data-id="breaks"] .section-handle {
   display: block; font-size: 11px; color: #bbb; cursor: grab;
-  text-align: center; padding: 2px 14px; border: 1px solid #e8e8e8;
-  border-radius: 20px; user-select: none; align-self: center;
+  text-align: center; padding: 2px 14px; border: 1px solid #ddd;
+  border-radius: 20px; user-select: none; align-self: flex-end;
+  background: rgba(255,255,255,0.92);
 }
-.section-block[data-id="breaks"] .section-handle:hover { color: #999; background: #f5f5f5; }
+.section-block[data-id="breaks"] .section-handle:hover { color: #999; background: #fff; }
 .section-block[data-id="breaks"] .section-handle:active { cursor: grabbing; }
 .section-content { display: flex; flex-direction: column; align-items: center; gap: 0.75rem; width: 100%; }
 
@@ -523,6 +564,8 @@ button:active { transform: scale(0.97); }
 </head>
 <body>
 
+<div class="bg-overlay" id="bgOverlay"></div>
+
 <div class="sticky-header">
   <div class="sticky-label">working on</div>
   <div class="sticky-task" id="stickyTask" contenteditable="true" spellcheck="false">my task</div>
@@ -561,33 +604,35 @@ button:active { transform: scale(0.97); }
 
   <input id="taskName" type="text" value="my task" maxlength="120" spellcheck="false" style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0" />
 
-  <div style="display:flex;flex-direction:column;align-items:center;gap:8px">
-    <div class="time-btns">
-      <button class="time-btn" data-mins="15">15 min</button>
-      <button class="time-btn active" data-mins="25">25 min</button>
-      <button class="time-btn" data-mins="50">50 min</button>
-      <button class="time-btn" data-mins="60">60 min</button>
+  <div class="timer-card">
+    <div style="display:flex;flex-direction:column;align-items:center;gap:8px">
+      <div class="time-btns">
+        <button class="time-btn" data-mins="15">15 min</button>
+        <button class="time-btn active" data-mins="25">25 min</button>
+        <button class="time-btn" data-mins="50">50 min</button>
+        <button class="time-btn" data-mins="60">60 min</button>
+      </div>
+      <div class="custom-row">
+        <input id="customMins" type="number" min="1" max="180" placeholder="custom" />
+        <span class="custom-label">min</span>
+        <button class="time-btn" id="setCustomBtn">set</button>
+      </div>
     </div>
-    <div class="custom-row">
-      <input id="customMins" type="number" min="1" max="180" placeholder="custom" />
-      <span class="custom-label">min</span>
-      <button class="time-btn" id="setCustomBtn">set</button>
+
+    <div class="timer-display" id="display">25:00</div>
+    <div class="progress-bar"><div class="progress-fill" id="fill"></div></div>
+    <div class="mantra" id="mantra">you are here. this moment is enough.</div>
+
+    <div class="btn-row">
+      <button class="primary" id="startBtn">start</button>
+      <button id="pauseBtn" style="display:none">pause</button>
+      <button id="resetBtn">reset</button>
+      <button id="finishBtn" style="display:none">I'm finished</button>
     </div>
-  </div>
 
-  <div class="timer-display" id="display">25:00</div>
-  <div class="progress-bar"><div class="progress-fill" id="fill"></div></div>
-  <div class="mantra" id="mantra">you are here. this moment is enough.</div>
-
-  <div class="btn-row">
-    <button class="primary" id="startBtn">start</button>
-    <button id="pauseBtn" style="display:none">pause</button>
-    <button id="resetBtn">reset</button>
-    <button id="finishBtn" style="display:none">I'm finished</button>
-  </div>
-
-  <div class="seal-trigger-row" id="sealTriggerRow" style="display:flex">
-    <button class="seal-trigger-btn" id="sealTriggerBtn">&#128274; seal this session</button>
+    <div class="seal-trigger-row" id="sealTriggerRow" style="display:flex">
+      <button class="seal-trigger-btn" id="sealTriggerBtn">&#128274; seal this session</button>
+    </div>
   </div>
 
   <div class="seal-modal-overlay" id="sealModalOverlay" style="display:none">
@@ -659,6 +704,11 @@ button:active { transform: scale(0.97); }
           <span class="sound-row-label">white noise</span>
           <input type="range" id="whiteVolume" min="0" max="1" step="0.02" value="0.3" style="accent-color:#666" />
           <button class="sound-toggle" id="whiteBtn">off</button>
+        </div>
+        <div class="sound-row">
+          <span class="sound-row-label">🌊 ocean</span>
+          <input type="range" id="oceanVolume" min="0" max="1" step="0.02" value="0.3" style="accent-color:#0077b6" />
+          <button class="sound-toggle" id="oceanBtn">off</button>
         </div>
       </div>
     </div>
@@ -770,6 +820,34 @@ button:active { transform: scale(0.97); }
             <div class="color-swatch" data-bg="#fde8ee" data-border="#f0a8b8" data-text="#8b1a3a" data-label="#c87a90" data-bar="#f0a8b8" style="background:#fde8ee" title="pink"></div>
           </div>
         </div>
+        <div style="border-top:1px solid #b2dcc2;padding-top:10px;display:flex;flex-direction:column;gap:8px">
+          <div class="color-picker-label">page background</div>
+          <div class="bg-picker-row" id="bgPicker">
+            <div class="bg-swatch none-swatch selected" data-bg="none" title="no background">○</div>
+            <div class="bg-swatch" data-bg="https://images.unsplash.com/photo-1505118380757-91f5f5632de0?w=1920&q=80" style="background-image:url('https://images.unsplash.com/photo-1505118380757-91f5f5632de0?w=200&q=60')" title="ocean waves"></div>
+            <div class="bg-swatch" data-bg="https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=1920&q=80" style="background-image:url('https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=200&q=60')" title="beach"></div>
+            <div class="bg-swatch" data-bg="https://images.unsplash.com/photo-1419242902214-272b3f66ee7a?w=1920&q=80" style="background-image:url('https://images.unsplash.com/photo-1419242902214-272b3f66ee7a?w=200&q=60')" title="starry night"></div>
+            <div class="bg-swatch" data-bg="https://images.unsplash.com/photo-1509316785289-025f5b846b35?w=1920&q=80" style="background-image:url('https://images.unsplash.com/photo-1509316785289-025f5b846b35?w=200&q=60')" title="desert dunes"></div>
+            <div class="bg-swatch" data-bg="https://images.unsplash.com/photo-1448375240586-882707db888b?w=1920&q=80" style="background-image:url('https://images.unsplash.com/photo-1448375240586-882707db888b?w=200&q=60')" title="forest"></div>
+            <div class="bg-swatch" data-bg="https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=1920&q=80" style="background-image:url('https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=200&q=60')" title="mountains"></div>
+            <div class="bg-swatch" data-bg="color-ocean" style="background:linear-gradient(135deg,#0077b6,#00b4d8,#90e0ef)" title="ocean blue"></div>
+            <div class="bg-swatch" data-bg="color-sunset" style="background:linear-gradient(135deg,#f77f00,#fcbf49,#e63946)" title="sunset"></div>
+            <div class="bg-swatch" data-bg="color-forest" style="background:linear-gradient(135deg,#1b4332,#2d6a4f,#74c69d)" title="forest"></div>
+            <div class="bg-swatch" data-bg="color-dusk" style="background:linear-gradient(135deg,#2d00f7,#6a00f4,#e500a4)" title="dusk"></div>
+            <div class="bg-swatch" data-bg="color-sand" style="background:linear-gradient(135deg,#f4e4ba,#e9c46a,#f4a261)" title="sand"></div>
+            <button class="bg-upload-btn" id="bgUploadBtn">+ upload</button>
+            <input type="file" id="bgFileInput" accept="image/*" style="display:none" />
+          </div>
+          <div id="customBgRow" style="display:none;align-items:center;gap:6px">
+            <span class="task-hint">custom image</span>
+            <button class="task-clear-btn" id="deleteBgBtn">× remove</button>
+          </div>
+          <div class="bg-opacity-row">
+            <span class="bg-opacity-label">overlay</span>
+            <input type="range" id="bgOpacity" min="0" max="1" step="0.05" value="0.82" style="flex:1;accent-color:#2d9e4f" />
+            <span class="task-hint" id="bgOpacityVal">82%</span>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -841,6 +919,7 @@ var noiseGainNode = null;
 var whiteOn = false;
 var whiteSource = null;
 var whiteGainNode = null;
+var oceanOn = false;
 var audioCtx = null;
 var activeTaskDue = '';
 
@@ -1687,7 +1766,74 @@ function stopWhiteNoise() {
   }
 }
 
-// Task list
+var oceanOn = false;
+var oceanNodes = [];
+var oceanGainNode = null;
+
+function startOceanSound() {
+  try {
+    var ctx = getAudioCtx();
+    var vol = noiseSliderToGain(document.getElementById('oceanVolume').value);
+    oceanGainNode = ctx.createGain();
+    oceanGainNode.gain.value = vol;
+    oceanGainNode.connect(ctx.destination);
+
+    // Create several wave layers with different LFO speeds
+    var waveLayers = [
+      { freq: 0.12, filterFreq: 400, q: 2 },
+      { freq: 0.07, filterFreq: 300, q: 1.5 },
+      { freq: 0.19, filterFreq: 600, q: 3 }
+    ];
+
+    waveLayers.forEach(function(layer) {
+      var bufSize = ctx.sampleRate * 4;
+      var buf = ctx.createBuffer(1, bufSize, ctx.sampleRate);
+      var data = buf.getChannelData(0);
+      var lastOut = 0;
+      for (var i = 0; i < bufSize; i++) {
+        var w = Math.random() * 2 - 1;
+        data[i] = (lastOut + 0.02 * w) / 1.02;
+        lastOut = data[i];
+        data[i] *= 3.5;
+      }
+
+      var src = ctx.createBufferSource();
+      src.buffer = buf;
+      src.loop = true;
+
+      var filter = ctx.createBiquadFilter();
+      filter.type = 'bandpass';
+      filter.frequency.value = layer.filterFreq;
+      filter.Q.value = layer.q;
+
+      var lfo = ctx.createOscillator();
+      var lfoGain = ctx.createGain();
+      lfo.frequency.value = layer.freq;
+      lfoGain.gain.value = layer.filterFreq * 0.4;
+      lfo.connect(lfoGain);
+      lfoGain.connect(filter.frequency);
+      lfo.start();
+
+      var waveGain = ctx.createGain();
+      waveGain.gain.value = 0.4;
+
+      src.connect(filter);
+      filter.connect(waveGain);
+      waveGain.connect(oceanGainNode);
+      src.start();
+
+      oceanNodes.push(src, lfo);
+    });
+  } catch(e) {}
+}
+
+function stopOceanSound() {
+  oceanNodes.forEach(function(n) { try { n.stop(); } catch(e) {} });
+  oceanNodes = [];
+  oceanGainNode = null;
+}
+
+
 var tasks = [];
 
 function loadTasks() {
@@ -2695,6 +2841,137 @@ applyTheme(currentTheme);
   document.addEventListener('mouseup', function() { dragFromHandle = false; });
 })();
 
+// Background picker
+var bgColors = {
+  'color-ocean':  'linear-gradient(135deg,#0077b6,#00b4d8,#90e0ef)',
+  'color-sunset': 'linear-gradient(135deg,#f77f00,#fcbf49,#e63946)',
+  'color-forest': 'linear-gradient(135deg,#1b4332,#2d6a4f,#74c69d)',
+  'color-dusk':   'linear-gradient(135deg,#2d00f7,#6a00f4,#e500a4)',
+  'color-sand':   'linear-gradient(135deg,#f4e4ba,#e9c46a,#f4a261)'
+};
+
+function applyBg(url) {
+  var overlay = document.getElementById('bgOverlay');
+  if (!url || url === 'none') {
+    document.body.style.backgroundImage = 'none';
+    document.body.style.backgroundColor = '#f9f9f8';
+    overlay.classList.remove('has-bg');
+  } else if (bgColors[url]) {
+    document.body.style.backgroundImage = bgColors[url];
+    overlay.classList.add('has-bg');
+  } else {
+    document.body.style.backgroundImage = 'url(' + url + ')';
+    overlay.classList.add('has-bg');
+  }
+}
+
+function selectBgSwatch(url) {
+  var swatches = document.querySelectorAll('.bg-swatch');
+  for (var i = 0; i < swatches.length; i++) swatches[i].classList.remove('selected');
+  var target = document.querySelector('.bg-swatch[data-bg="' + url + '"]');
+  if (target) target.classList.add('selected');
+}
+
+// Load saved bg
+try {
+  var savedBgUrl = localStorage.getItem('focusTimerBgUrl');
+  var savedBgCustom = localStorage.getItem('focusTimerBgCustom');
+  var savedOpacity = localStorage.getItem('focusTimerBgOpacity');
+  if (savedOpacity) {
+    document.getElementById('bgOpacity').value = savedOpacity;
+    document.getElementById('bgOverlay').style.background = 'rgba(255,255,255,' + savedOpacity + ')';
+    document.getElementById('bgOpacityVal').textContent = Math.round(savedOpacity * 100) + '%';
+  }
+  if (savedBgCustom) {
+    var cSwatch = document.createElement('div');
+    cSwatch.className = 'bg-swatch';
+    cSwatch.setAttribute('data-bg', 'custom');
+    cSwatch.title = 'my image';
+    cSwatch.style.backgroundSize = 'cover';
+    cSwatch.style.backgroundImage = 'url(' + savedBgCustom + ')';
+    cSwatch.addEventListener('click', function() {
+      var img = localStorage.getItem('focusTimerBgCustom');
+      if (img) { applyBg(img); selectBgSwatch('custom'); }
+    });
+    document.getElementById('bgPicker').insertBefore(cSwatch, document.getElementById('bgUploadBtn'));
+    document.getElementById('customBgRow').style.display = 'flex';
+  }
+  if (savedBgUrl && savedBgUrl !== 'none') {
+    if (savedBgUrl === 'custom' && savedBgCustom) {
+      applyBg(savedBgCustom);
+    } else {
+      applyBg(savedBgUrl);
+    }
+    selectBgSwatch(savedBgUrl);
+  }
+} catch(e) {}
+
+var bgSwatches = document.querySelectorAll('.bg-swatch');
+for (var bs = 0; bs < bgSwatches.length; bs++) {
+  bgSwatches[bs].addEventListener('click', function() {
+    var url = this.getAttribute('data-bg');
+    selectBgSwatch(url);
+    applyBg(url === 'none' ? null : url);
+    try { localStorage.setItem('focusTimerBgUrl', url); } catch(e) {}
+  });
+}
+
+document.getElementById('bgUploadBtn').addEventListener('click', function() {
+  document.getElementById('bgFileInput').click();
+});
+
+document.getElementById('bgFileInput').addEventListener('change', function() {
+  var file = this.files[0];
+  if (!file) return;
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    var dataUrl = e.target.result;
+    var existing = document.querySelector('.bg-swatch[data-bg="custom"]');
+    if (!existing) {
+      existing = document.createElement('div');
+      existing.className = 'bg-swatch';
+      existing.setAttribute('data-bg', 'custom');
+      existing.title = 'my image';
+      existing.style.backgroundSize = 'cover';
+      existing.addEventListener('click', function() {
+        var img = localStorage.getItem('focusTimerBgCustom');
+        if (img) { applyBg(img); selectBgSwatch('custom'); }
+      });
+      document.getElementById('bgPicker').insertBefore(existing, document.getElementById('bgUploadBtn'));
+    }
+    existing.style.backgroundImage = 'url(' + dataUrl + ')';
+    applyBg(dataUrl);
+    selectBgSwatch('custom');
+    document.getElementById('customBgRow').style.display = 'flex';
+    try {
+      localStorage.setItem('focusTimerBgCustom', dataUrl);
+      localStorage.setItem('focusTimerBgUrl', 'custom');
+    } catch(e) {
+      alert('Image too large to save — it will only last this session.');
+    }
+  };
+  reader.readAsDataURL(file);
+});
+
+document.getElementById('deleteBgBtn').addEventListener('click', function() {
+  var existing = document.querySelector('.bg-swatch[data-bg="custom"]');
+  if (existing) existing.remove();
+  document.getElementById('customBgRow').style.display = 'none';
+  applyBg(null);
+  selectBgSwatch('none');
+  try {
+    localStorage.removeItem('focusTimerBgCustom');
+    localStorage.setItem('focusTimerBgUrl', 'none');
+  } catch(e) {}
+});
+
+document.getElementById('bgOpacity').addEventListener('input', function() {
+  var val = parseFloat(this.value);
+  document.getElementById('bgOverlay').style.background = 'rgba(255,255,255,' + val + ')';
+  document.getElementById('bgOpacityVal').textContent = Math.round(val * 100) + '%';
+  try { localStorage.setItem('focusTimerBgOpacity', val); } catch(e) {}
+});
+
 loadTasks();
 loadTemplates();
 loadStats();
@@ -3046,6 +3323,27 @@ document.getElementById('whiteBtn').addEventListener('click', function() {
 
 document.getElementById('whiteVolume').addEventListener('input', function() {
   if (whiteGainNode) whiteGainNode.gain.value = noiseSliderToGain(this.value);
+});
+
+document.getElementById('oceanBtn').addEventListener('click', function() {
+  oceanOn = !oceanOn;
+  if (oceanOn) {
+    startOceanSound();
+    this.textContent = 'on';
+    this.style.background = '#0077b6';
+    this.style.color = '#fff';
+    this.style.borderColor = '#0077b6';
+  } else {
+    stopOceanSound();
+    this.textContent = 'off';
+    this.style.background = '';
+    this.style.color = '';
+    this.style.borderColor = '';
+  }
+});
+
+document.getElementById('oceanVolume').addEventListener('input', function() {
+  if (oceanGainNode) oceanGainNode.gain.value = noiseSliderToGain(this.value);
 });
 
 var timeBtns = document.querySelectorAll('.time-btn[data-mins]');
