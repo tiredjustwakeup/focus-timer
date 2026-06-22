@@ -32,7 +32,9 @@ body {
 .sticky-label { font-size: 10px; color: #bbb; text-transform: uppercase; letter-spacing: 0.1em; transition: color 0.6s; }
 .sticky-header.running .sticky-label { color: var(--theme-label, #7abf93); }
 .sticky-header.on-break .sticky-label { color: #7a9abf !important; }
-.sticky-task { font-size: 26px; font-weight: 700; color: #2d9e4f; text-align: center; white-space: normal; overflow-wrap: break-word; max-width: 300px; min-width: 0; line-height: 1.2; letter-spacing: -0.5px; transition: color 0.6s; }
+.sticky-task { font-size: 26px; font-weight: 700; color: #2d9e4f; text-align: center; white-space: normal; overflow-wrap: break-word; max-width: 300px; min-width: 0; line-height: 1.2; letter-spacing: -0.5px; transition: color 0.6s; cursor: text; outline: none; border-bottom: 1.5px solid transparent; }
+.sticky-task:hover { border-bottom-color: rgba(45,158,79,0.3); }
+.sticky-task:focus { border-bottom-color: rgba(45,158,79,0.6); }
 .sticky-header.running .sticky-task { color: var(--theme-text, #1a6b38); }
 .sticky-header.on-break .sticky-task { color: #2a4a9e !important; }
 .sticky-due { font-size: 12px; color: #c98a3a; font-weight: 500; display: none; margin-top: 2px; }
@@ -194,6 +196,28 @@ button:active { transform: scale(0.97); }
   border-radius: 12px; padding: 1rem 1.25rem;
   flex-direction: column; gap: 10px; display: none;
 }
+.later-box {
+  width: 100%; background: #f5f0fb; border: 1px solid #d0b8e8;
+  border-radius: 12px; padding: 1rem 1.25rem;
+  flex-direction: column; gap: 10px; display: none;
+}
+.later-list { display: flex; flex-direction: column; gap: 6px; min-height: 8px; }
+.later-list.drop-target { outline: 2px dashed #9b6ec8; outline-offset: 4px; border-radius: 6px; }
+.later-empty { font-size: 13px; color: #bbb; text-align: center; padding: 4px 0; }
+.later-item {
+  display: flex; align-items: center; gap: 6px;
+  padding: 6px 0; border-bottom: 1px solid #ede5f8;
+}
+.later-item:last-child { border-bottom: none; }
+.later-item.dragging { opacity: 0.4; }
+.later-item.drag-over-top { border-top: 2px solid #9b6ec8; }
+.later-item.drag-over-bottom { border-bottom: 2px solid #9b6ec8; }
+.later-item-text { flex: 1; font-size: 13px; color: #555; line-height: 1.4; word-break: break-word; }
+.later-promote-btn {
+  font-size: 13px; color: #ccc; background: none; border: none;
+  cursor: pointer; padding: 0 2px; line-height: 1; flex-shrink: 0;
+}
+.later-promote-btn:hover { color: #9b6ec8; }
 .task-input-row { display: flex; gap: 8px; flex-wrap: wrap; }
 .task-input-row input[type=text] {
   flex: 1; min-width: 120px; font-size: 13px; padding: 6px 10px;
@@ -443,7 +467,7 @@ button:active { transform: scale(0.97); }
 
 <div class="sticky-header">
   <div class="sticky-label">working on</div>
-  <div class="sticky-task" id="stickyTask">my task</div>
+  <div class="sticky-task" id="stickyTask" contenteditable="true" spellcheck="false">my task</div>
   <div class="sticky-due" id="stickyDue"></div>
   <div class="sticky-time" id="stickyTime">25:00</div>
   <div class="sticky-bar"><div class="sticky-bar-fill" id="stickyFill"></div></div>
@@ -651,6 +675,20 @@ button:active { transform: scale(0.97); }
         <div class="color-swatch" data-bg="#fde8ee" data-border="#f0a8b8" data-text="#8b1a3a" data-label="#c87a90" data-bar="#f0a8b8" style="background:#fde8ee" title="pink"></div>
       </div>
     </div>
+  </div>
+
+  <div class="new-day-row" style="margin-top:-0.5rem">
+    <button class="toggle-btn" id="toggleLater">&#9658; later</button>
+  </div>
+  <div class="later-box" id="laterBox" style="display:none">
+    <div class="color-picker-label" style="align-self:flex-start">later</div>
+    <div class="later-list" id="laterList"></div>
+    <div class="later-empty" id="laterEmpty">nothing here yet — drag tasks from your main list</div>
+    <div class="task-input-row">
+      <input id="laterAddInput" type="text" placeholder="add to later..." maxlength="100" />
+      <button class="task-add-btn" id="laterAddBtn">add</button>
+    </div>
+    <div class="task-hint">drag tasks here from your main list &middot; drag back up to make them active</div>
   </div>
 
   <div class="new-day-row">
@@ -1009,6 +1047,7 @@ function updateMantra() {
 }
 
 var sessionEndTime = null;
+var globalDragSource = null; // 'task', 'later', or 'subtask'
 
 function startTimer() {
   if (running) return;
@@ -1347,6 +1386,9 @@ function renderTrackers() {
       nameInput.draggable = false;
       nameInput.value = tracker.name;
       nameInput.maxLength = 40;
+      nameInput.addEventListener('focus', function() {
+        this.select();
+      });
       nameInput.addEventListener('change', function() {
         var v = this.value.trim();
         tracker.name = v || 'tracker';
@@ -1530,7 +1572,165 @@ function saveTasks() {
   try { localStorage.setItem('focusTimerTasks', JSON.stringify(tasks)); } catch(e) {}
 }
 
-// Templates
+// Later list
+var laterTasks = [];
+
+function loadLaterTasks() {
+  try {
+    var saved = localStorage.getItem('focusTimerLater');
+    if (saved) laterTasks = JSON.parse(saved);
+  } catch(e) { laterTasks = []; }
+  renderLaterTasks();
+}
+
+function saveLaterTasks() {
+  try { localStorage.setItem('focusTimerLater', JSON.stringify(laterTasks)); } catch(e) {}
+}
+
+function renderLaterTasks() {
+  var list = document.getElementById('laterList');
+  var empty = document.getElementById('laterEmpty');
+  list.innerHTML = '';
+  empty.style.display = laterTasks.length === 0 ? 'block' : 'none';
+
+  var laterDragSrc = null;
+
+  for (var i = 0; i < laterTasks.length; i++) {
+    (function(ltask, idx) {
+      var item = document.createElement('div');
+      item.className = 'later-item';
+      item.draggable = true;
+
+      item.addEventListener('dragstart', function(e) {
+        laterDragSrc = idx;
+        globalDragSource = 'later';
+        item.classList.add('dragging');
+        e.dataTransfer.setData('text/plain', 'later:' + idx);
+        e.dataTransfer.effectAllowed = 'move';
+      });
+      item.addEventListener('dragend', function() {
+        globalDragSource = null;
+        item.classList.remove('dragging');
+        list.classList.remove('drop-target');
+        var items = list.querySelectorAll('.later-item');
+        for (var z = 0; z < items.length; z++) {
+          items[z].classList.remove('drag-over-top', 'drag-over-bottom');
+        }
+      });
+      item.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        var rect = item.getBoundingClientRect();
+        var mid = rect.top + rect.height / 2;
+        item.classList.remove('drag-over-top', 'drag-over-bottom');
+        if (e.clientY < mid) item.classList.add('drag-over-top');
+        else item.classList.add('drag-over-bottom');
+      });
+      item.addEventListener('dragleave', function() {
+        item.classList.remove('drag-over-top', 'drag-over-bottom');
+      });
+      item.addEventListener('drop', function(e) {
+        e.preventDefault();
+        item.classList.remove('drag-over-top', 'drag-over-bottom');
+        var data = e.dataTransfer.getData('text/plain');
+
+        if (data && data.indexOf('task:') === 0) {
+          // main task dropped onto later item
+          var taskIdx = parseInt(data.replace('task:', ''));
+          var moved = tasks.splice(taskIdx, 1)[0];
+          var rect = item.getBoundingClientRect();
+          var insertAfter = e.clientY >= rect.top + rect.height / 2;
+          var ti = insertAfter ? idx + 1 : idx;
+          laterTasks.splice(ti, 0, { text: moved.text, done: false });
+          saveTasks();
+          saveLaterTasks();
+          renderTasks();
+          renderLaterTasks();
+          return;
+        }
+
+        if (laterDragSrc === null || laterDragSrc === idx) return;
+        var rect = item.getBoundingClientRect();
+        var insertAfter = e.clientY >= rect.top + rect.height / 2;
+        var moved = laterTasks.splice(laterDragSrc, 1)[0];
+        var ti = idx;
+        if (laterDragSrc < idx) ti--;
+        if (insertAfter) ti++;
+        laterTasks.splice(ti, 0, moved);
+        saveLaterTasks();
+        renderLaterTasks();
+      });
+
+      // promote to main list button
+      var promoteBtn = document.createElement('button');
+      promoteBtn.className = 'later-promote-btn';
+      promoteBtn.innerHTML = '&#8593;';
+      promoteBtn.title = 'move to main tasks';
+      promoteBtn.addEventListener('click', function() {
+        var moved = laterTasks.splice(idx, 1)[0];
+        tasks.push({ text: moved.text, done: false, starred: false, priority: 'none', due: '', subtasks: [] });
+        saveTasks();
+        saveLaterTasks();
+        renderTasks();
+        renderLaterTasks();
+      });
+
+      var text = document.createElement('span');
+      text.className = 'later-item-text';
+      text.textContent = ltask.text;
+
+      var del = document.createElement('button');
+      del.className = 'task-delete';
+      del.textContent = '×';
+      del.addEventListener('click', function() {
+        laterTasks.splice(idx, 1);
+        saveLaterTasks();
+        renderLaterTasks();
+      });
+
+      item.appendChild(promoteBtn);
+      item.appendChild(text);
+      item.appendChild(del);
+      list.appendChild(item);
+    })(laterTasks[i], i);
+  }
+
+  // allow main tasks to be dropped onto the later list container itself
+  list.ondragover = function(e) {
+    if (globalDragSource === 'task') {
+      e.preventDefault();
+      list.classList.add('drop-target');
+    }
+  };
+  list.ondragleave = function(e) {
+    if (e.target === list) list.classList.remove('drop-target');
+  };
+  list.ondrop = function(e) {
+    list.classList.remove('drop-target');
+    if (globalDragSource !== 'task') return;
+    e.preventDefault();
+    var data = e.dataTransfer.getData('text/plain');
+    var taskIdx = parseInt(data.replace('task:', ''));
+    var moved = tasks.splice(taskIdx, 1)[0];
+    laterTasks.push({ text: moved.text, done: false });
+    saveTasks();
+    saveLaterTasks();
+    renderTasks();
+    renderLaterTasks();
+  };
+}
+
+function addToLater() {
+  var input = document.getElementById('laterAddInput');
+  var text = input.value.trim();
+  if (!text) return;
+  laterTasks.push({ text: text, done: false });
+  saveLaterTasks();
+  renderLaterTasks();
+  input.value = '';
+  input.focus();
+}
+
+
 var templates = [];
 
 function loadTemplates() {
@@ -1779,11 +1979,14 @@ function renderTasks() {
       item.addEventListener('dragstart', function(e) {
         dragSrcIdx = idx;
         dragSrcType = 'task';
+        globalDragSource = 'task';
         item.classList.add('dragging');
+        e.dataTransfer.setData('text/plain', 'task:' + idx);
         e.dataTransfer.effectAllowed = 'move';
       });
 
       item.addEventListener('dragend', function() {
+        globalDragSource = null;
         item.classList.remove('dragging');
         list.classList.remove('list-drop-target');
         var items = list.querySelectorAll('.task-item');
@@ -2242,6 +2445,7 @@ loadTasks();
 loadTemplates();
 loadStats();
 loadTrackers();
+loadLaterTasks();
 
 var swatches = document.querySelectorAll('.color-swatch');
 for (var s = 0; s < swatches.length; s++) {
@@ -2272,6 +2476,26 @@ document.getElementById('taskName').addEventListener('input', function() {
   document.getElementById('stickyDue').style.display = 'none';
 });
 
+document.getElementById('stickyTask').addEventListener('input', function() {
+  var text = this.textContent.trim();
+  document.getElementById('taskName').value = text || 'my task';
+});
+
+document.getElementById('stickyTask').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    this.blur();
+  }
+});
+
+document.getElementById('stickyTask').addEventListener('blur', function() {
+  var text = this.textContent.trim();
+  if (!text) {
+    this.textContent = 'my task';
+    document.getElementById('taskName').value = 'my task';
+  }
+});
+
 document.getElementById('startBtn').addEventListener('click', startTimer);
 document.getElementById('pauseBtn').addEventListener('click', pauseTimer);
 document.getElementById('resetBtn').addEventListener('click', resetTimer);
@@ -2291,6 +2515,18 @@ document.getElementById('sessionBtn').addEventListener('click', addSession);
 document.getElementById('addTrackerBtn').addEventListener('click', addTracker);
 document.getElementById('setCustomBtn').addEventListener('click', setCustomTime);
 document.getElementById('newDayBtn').addEventListener('click', newDay);
+
+document.getElementById('toggleLater').addEventListener('click', function() {
+  var box = document.getElementById('laterBox');
+  var open = box.style.display === 'flex';
+  box.style.display = open ? 'none' : 'flex';
+  this.innerHTML = (open ? '&#9658;' : '&#9660;') + ' later';
+});
+
+document.getElementById('laterAddBtn').addEventListener('click', addToLater);
+document.getElementById('laterAddInput').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') addToLater();
+});
 
 document.getElementById('break5Btn').addEventListener('click', function() { startBreakTimer(5); });
 document.getElementById('break10Btn').addEventListener('click', function() { startBreakTimer(10); });
