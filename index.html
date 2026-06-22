@@ -332,16 +332,7 @@ button:active { transform: scale(0.97); }
   padding: 6px 0; border-bottom: 1px solid #f0f0f0;
 }
 .task-item:last-child { border-bottom: none; }
-.task-symbol {
-  font-size: 11px; font-weight: 700; cursor: pointer; flex-shrink: 0;
-  background: none; border: none; padding: 0 2px; line-height: 1;
-  width: 14px; text-align: center; transition: color 0.15s;
-}
-.task-symbol.type-task    { color: #aaa; }
-.task-symbol.type-event   { color: #e87c3a; }
-.task-symbol.type-note    { color: #e8a93a; }
-.task-symbol.type-highlight { color: #c9456a; }
-.task-symbol.type-later   { color: #9b6ec8; }
+
 .task-row { display: flex; align-items: center; gap: 6px; }
 .task-item input[type=checkbox] { accent-color: #2d9e4f; width: 16px; height: 16px; cursor: pointer; flex-shrink: 0; }
 .task-star {
@@ -350,6 +341,7 @@ button:active { transform: scale(0.97); }
 }
 .task-star.starred { color: #e8a93a; }
 .task-star.starred-medium { color: #3a8be8; }
+.task-star.starred-event { color: #e87c3a; font-size: 14px; }
 .task-item-main { flex: 1; display: flex; flex-direction: column; gap: 1px; min-width: 0; cursor: pointer; }
 .task-item-text { font-size: 13px; color: #1a1a1a; line-height: 1.4; word-break: break-word; }
 .task-item-text.done { text-decoration: line-through; color: #bbb; }
@@ -359,11 +351,17 @@ button:active { transform: scale(0.97); }
   cursor: pointer; padding: 0 2px; line-height: 1; flex-shrink: 0;
 }
 .task-delete:hover { color: #999; }
-.task-edit-btn {
-  font-size: 13px; color: #ccc; background: none; border: none;
+.task-migrate-btn {
+  font-size: 11px; color: #ccc; background: none; border: none;
+  cursor: pointer; padding: 0 2px; line-height: 1; flex-shrink: 0;
+  font-weight: 700;
+}
+.task-migrate-btn:hover { color: #9b6ec8; }
+.task-timer-btn {
+  font-size: 14px; color: #ccc; background: none; border: none;
   cursor: pointer; padding: 0 2px; line-height: 1; flex-shrink: 0;
 }
-.task-edit-btn:hover { color: #999; }
+.task-timer-btn:hover { color: #2d9e4f; }
 .task-edit-input {
   font-size: 13px; padding: 3px 6px; border: 1px solid #aaa;
   border-radius: 4px; outline: none; font-family: inherit;
@@ -1953,6 +1951,31 @@ function renderLaterTasks() {
       var text = document.createElement('span');
       text.className = 'later-item-text';
       text.textContent = ltask.text;
+      text.title = 'double-click to edit';
+      text.addEventListener('dblclick', function() {
+        var input = document.createElement('input');
+        input.type = 'text';
+        input.value = ltask.text;
+        input.style.cssText = 'flex:1;font-size:13px;border:none;border-bottom:1px solid #9b6ec8;outline:none;background:transparent;font-family:inherit;color:#555;padding:1px 2px;';
+        item.replaceChild(input, text);
+        input.focus();
+        input.select();
+        function finishEdit() {
+          var val = input.value.trim();
+          if (val) {
+            laterTasks[idx].text = val;
+            text.textContent = val;
+            ltask.text = val;
+            saveLaterTasks();
+          }
+          item.replaceChild(text, input);
+        }
+        input.addEventListener('blur', finishEdit);
+        input.addEventListener('keydown', function(ev) {
+          if (ev.key === 'Enter') finishEdit();
+          if (ev.key === 'Escape') item.replaceChild(text, input);
+        });
+      });
 
       var del = document.createElement('button');
       del.className = 'task-delete';
@@ -1974,6 +1997,7 @@ function renderLaterTasks() {
   list.ondragover = function(e) {
     if (globalDragSource === 'task') {
       e.preventDefault();
+      e.stopPropagation();
       list.classList.add('drop-target');
     }
   };
@@ -1984,6 +2008,7 @@ function renderLaterTasks() {
     list.classList.remove('drop-target');
     if (globalDragSource !== 'task') return;
     e.preventDefault();
+    e.stopPropagation();
     var data = e.dataTransfer.getData('text/plain');
     var taskIdx = parseInt(data.replace('task:', ''));
     var moved = tasks.splice(taskIdx, 1)[0];
@@ -1993,6 +2018,35 @@ function renderLaterTasks() {
     renderTasks();
     renderLaterTasks();
   };
+
+  // Also make the laterBox itself a drop target for when list is empty
+  var laterBox = document.getElementById('laterBox');
+  if (laterBox) {
+    laterBox.ondragover = function(e) {
+      if (globalDragSource === 'task') {
+        e.preventDefault();
+        e.stopPropagation();
+        list.classList.add('drop-target');
+      }
+    };
+    laterBox.ondragleave = function(e) {
+      if (!laterBox.contains(e.relatedTarget)) list.classList.remove('drop-target');
+    };
+    laterBox.ondrop = function(e) {
+      list.classList.remove('drop-target');
+      if (globalDragSource !== 'task') return;
+      e.preventDefault();
+      e.stopPropagation();
+      var data = e.dataTransfer.getData('text/plain');
+      var taskIdx = parseInt(data.replace('task:', ''));
+      var moved = tasks.splice(taskIdx, 1)[0];
+      laterTasks.push({ text: moved.text, done: false });
+      saveTasks();
+      saveLaterTasks();
+      renderTasks();
+      renderLaterTasks();
+    };
+  }
 }
 
 function addToLater() {
@@ -2342,50 +2396,62 @@ function renderTasks() {
         renderTasks();
       });
 
-      var symbolTypes = [
-        { key: 'task',      glyph: '·',  label: 'task' },
-        { key: 'event',     glyph: '○',  label: 'event' },
-        { key: 'note',      glyph: '—',  label: 'note' },
-        { key: 'highlight', glyph: '✦',  label: 'highlight' },
-        { key: 'later',     glyph: '>',  label: 'later/migrate' }
-      ];
-      var curSymbol = task.symbol || 'task';
-      var symDef = symbolTypes.filter(function(s) { return s.key === curSymbol; })[0] || symbolTypes[0];
-      var symBtn = document.createElement('button');
-      symBtn.className = 'task-symbol type-' + symDef.key;
-      symBtn.textContent = symDef.glyph;
-      symBtn.title = symDef.label + ' — click to change type';
-      symBtn.addEventListener('click', function() {
-        var cur = tasks[idx].symbol || 'task';
-        var idx2 = 0;
-        for (var s = 0; s < symbolTypes.length; s++) {
-          if (symbolTypes[s].key === cur) { idx2 = s; break; }
-        }
-        var next = symbolTypes[(idx2 + 1) % symbolTypes.length];
-        tasks[idx].symbol = next.key;
-        symBtn.className = 'task-symbol type-' + next.key;
-        symBtn.textContent = next.glyph;
-        symBtn.title = next.label + ' — click to change type';
+      var star = document.createElement('button');
+      var priority = task.priority || (task.starred ? 'high' : 'none');
+      var starStates = ['none', 'high', 'medium', 'event'];
+      function getStarClass(p) {
+        if (p === 'high') return 'task-star starred';
+        if (p === 'medium') return 'task-star starred-medium';
+        if (p === 'event') return 'task-star starred-event';
+        return 'task-star';
+      }
+      function getStarGlyph(p) {
+        if (p === 'none') return '\u2606';
+        if (p === 'event') return '\u25cb';
+        return '\u2605';
+      }
+      function getStarTitle(p) {
+        if (p === 'none') return 'click to set priority';
+        if (p === 'high') return 'high \u2605 (yellow) — click for medium';
+        if (p === 'medium') return 'medium \u2605 (blue) — click for event';
+        return 'event \u25cb (orange) — click to clear';
+      }
+      star.className = getStarClass(priority);
+      star.innerHTML = getStarGlyph(priority);
+      star.title = getStarTitle(priority);
+      star.addEventListener('click', function() {
+        var cur = tasks[idx].priority || (tasks[idx].starred ? 'high' : 'none');
+        var ci = starStates.indexOf(cur);
+        if (ci === -1) ci = 0;
+        var next = starStates[(ci + 1) % starStates.length];
+        tasks[idx].priority = next;
+        tasks[idx].starred = (next === 'high');
+        star.className = getStarClass(next);
+        star.innerHTML = getStarGlyph(next);
+        star.title = getStarTitle(next);
         saveTasks();
       });
 
-      var star = document.createElement('button');
-      var priority = task.priority || (task.starred ? 'high' : 'none');
-      star.className = 'task-star' + (priority === 'high' ? ' starred' : priority === 'medium' ? ' starred-medium' : '');
-      star.innerHTML = priority === 'none' ? '&#9734;' : '&#9733;';
-      star.title = priority === 'none' ? 'set priority' : (priority === 'high' ? 'high priority (click for medium)' : 'medium priority (click to clear)');
-      star.addEventListener('click', function() {
-        var cur = tasks[idx].priority || (tasks[idx].starred ? 'high' : 'none');
-        var next = cur === 'none' ? 'high' : (cur === 'high' ? 'medium' : 'none');
-        tasks[idx].priority = next;
-        tasks[idx].starred = (next === 'high');
-        saveTasks();
-        renderTasks();
+      var timerBtn = document.createElement('button');
+      timerBtn.className = 'task-timer-btn';
+      timerBtn.innerHTML = '⏱';
+      timerBtn.title = 'set as active task';
+      timerBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        document.getElementById('taskName').value = task.text;
+        document.getElementById('stickyTask').textContent = task.text;
+        var dueEl = document.getElementById('stickyDue');
+        if (task.due) {
+          dueEl.textContent = fmtDue(task.due);
+          dueEl.style.display = 'block';
+        } else {
+          dueEl.style.display = 'none';
+        }
       });
 
       var main = document.createElement('div');
       main.className = 'task-item-main';
-      main.title = 'tap to set as active task';
+      main.title = 'double-click to edit';
 
       var text = document.createElement('span');
       text.className = 'task-item-text' + (task.done ? ' done' : '');
@@ -2399,23 +2465,7 @@ function renderTasks() {
         main.appendChild(due);
       }
 
-      main.addEventListener('click', function() {
-        document.getElementById('taskName').value = task.text;
-        document.getElementById('stickyTask').textContent = task.text;
-        var dueEl = document.getElementById('stickyDue');
-        if (task.due) {
-          dueEl.textContent = fmtDue(task.due);
-          dueEl.style.display = 'block';
-        } else {
-          dueEl.style.display = 'none';
-        }
-      });
-
-      var editBtn = document.createElement('button');
-      editBtn.className = 'task-edit-btn';
-      editBtn.innerHTML = '&#9998;';
-      editBtn.title = 'edit task';
-      editBtn.addEventListener('click', function(e) {
+      main.addEventListener('dblclick', function(e) {
         e.stopPropagation();
         var input = document.createElement('input');
         input.type = 'text';
@@ -2426,16 +2476,11 @@ function renderTasks() {
         main.appendChild(input);
         input.focus();
         input.select();
-
         function finishEdit() {
           var newText = input.value.trim();
-          if (newText) {
-            tasks[idx].text = newText;
-            saveTasks();
-          }
+          if (newText) { tasks[idx].text = newText; saveTasks(); }
           renderTasks();
         }
-
         input.addEventListener('keydown', function(ev) {
           if (ev.key === 'Enter') finishEdit();
           if (ev.key === 'Escape') renderTasks();
@@ -2444,6 +2489,8 @@ function renderTasks() {
         input.addEventListener('click', function(ev) { ev.stopPropagation(); });
       });
 
+      var editBtn = null;
+
       var del = document.createElement('button');
       del.className = 'task-delete';
       del.textContent = '×';
@@ -2451,6 +2498,26 @@ function renderTasks() {
         tasks.splice(idx, 1);
         saveTasks();
         renderTasks();
+      });
+
+      var migrateBtn = document.createElement('button');
+      migrateBtn.className = 'task-migrate-btn';
+      migrateBtn.textContent = '>';
+      migrateBtn.title = 'send to later';
+      migrateBtn.addEventListener('click', function() {
+        var moved = tasks.splice(idx, 1)[0];
+        laterTasks.push({ text: moved.text, done: false });
+        saveTasks();
+        saveLaterTasks();
+        renderTasks();
+        renderLaterTasks();
+        // open later section if closed
+        var laterBox = document.getElementById('laterBox');
+        var laterBtn = document.getElementById('toggleLater');
+        if (laterBox && laterBox.style.display === 'none') {
+          laterBox.style.display = 'flex';
+          if (laterBtn) laterBtn.innerHTML = '&#9660; later';
+        }
       });
 
       var subToggle = document.createElement('button');
@@ -2491,11 +2558,11 @@ function renderTasks() {
       row.className = 'task-row';
       row.appendChild(handle);
       row.appendChild(cb);
-      row.appendChild(symBtn);
       row.appendChild(star);
       row.appendChild(main);
       row.appendChild(subToggle);
-      row.appendChild(editBtn);
+      row.appendChild(timerBtn);
+      row.appendChild(migrateBtn);
       row.appendChild(del);
       item.appendChild(row);
 
@@ -2779,12 +2846,14 @@ applyTheme(currentTheme);
 
       handle.addEventListener('mousedown', function(e) {
         dragFromHandle = true;
+        block.setAttribute('draggable', 'true');
       });
       handle.addEventListener('touchstart', function(e) {
         dragFromHandle = true;
+        block.setAttribute('draggable', 'true');
       }, { passive: true });
 
-      block.setAttribute('draggable', 'true');
+      block.setAttribute('draggable', 'false');
 
       block.addEventListener('dragstart', function(e) {
         if (!dragFromHandle) { e.preventDefault(); return; }
@@ -2799,6 +2868,7 @@ applyTheme(currentTheme);
       block.addEventListener('dragend', function(e) {
         dragFromHandle = false;
         globalDragSource = null;
+        block.setAttribute('draggable', 'false');
         block.classList.remove('dragging');
         var all = container.querySelectorAll('.section-block');
         for (var z = 0; z < all.length; z++) all[z].classList.remove('drag-over-top', 'drag-over-bottom');
