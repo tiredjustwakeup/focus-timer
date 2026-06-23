@@ -235,9 +235,9 @@ button:active { transform: scale(0.97); }
 .section-block.drag-over-bottom { border-bottom: 3px solid #2d9e4f; padding-bottom: 4px; }
 .section-handle { display: none; }
 .section-block[data-id="breaks"] .section-handle {
-  display: block; font-size: 11px; color: #bbb; cursor: grab;
+  display: inline-block; font-size: 11px; color: #bbb; cursor: grab;
   text-align: center; padding: 2px 14px; border: 1px solid #ddd;
-  border-radius: 20px; user-select: none; align-self: flex-end;
+  border-radius: 20px; user-select: none;
   background: rgba(255,255,255,0.92);
 }
 .section-block[data-id="breaks"] .section-handle:hover { color: #999; background: #fff; }
@@ -258,6 +258,44 @@ button:active { transform: scale(0.97); }
   border-radius: 12px; padding: 1rem 1.25rem;
   flex-direction: column; gap: 10px; display: none;
 }
+.later-group {
+  border: 1px solid #e0d0f0; border-radius: 10px;
+  background: #fff; overflow: hidden;
+}
+.later-group-header {
+  display: flex; align-items: center; gap: 6px;
+  padding: 7px 10px; background: #f5f0fb; cursor: pointer;
+  user-select: none;
+}
+.later-group-toggle { font-size: 10px; color: #b0a0c0; }
+.later-group-name {
+  flex: 1; font-size: 12px; font-weight: 600; color: #7a5a9a;
+  border: none; background: transparent; outline: none;
+  font-family: inherit; cursor: pointer; padding: 0;
+}
+.later-group-name:focus { cursor: text; border-bottom: 1px solid #9b6ec8; }
+.later-group-count { font-size: 10px; color: #c0b0d0; }
+.later-group-del {
+  font-size: 13px; color: #d0c0e0; background: none; border: none;
+  cursor: pointer; padding: 0 2px; line-height: 1;
+}
+.later-group-del:hover { color: #c44; }
+.later-group-body { padding: 6px 10px; display: flex; flex-direction: column; gap: 2px; }
+.later-group-body.collapsed { display: none; }
+.later-group-empty { font-size: 11px; color: #ccc; padding: 4px 0; }
+.later-group-add-row { display: flex; gap: 6px; padding: 4px 0 2px; }
+.later-group-input {
+  flex: 1; font-size: 12px; padding: 4px 8px;
+  border: 1px solid #e0d0f0; border-radius: 6px;
+  outline: none; font-family: inherit; color: #1a1a1a; background: #fff;
+}
+.later-group-input:focus { border-color: #9b6ec8; }
+.later-group-add-btn {
+  font-size: 11px; padding: 4px 10px; border: 1px solid #9b6ec8;
+  border-radius: 6px; background: #9b6ec8; color: #fff;
+  cursor: pointer; font-family: inherit;
+}
+.later-group-body.drop-target { outline: 2px dashed #9b6ec8; outline-offset: -3px; border-radius: 6px; }
 .scratch-box {
   width: 100%; background: #fdfbf6; border: 1px solid #e0d5b8;
   border-radius: 12px; padding: 1rem 1.25rem;
@@ -668,7 +706,9 @@ button:active { transform: scale(0.97); }
   <div id="sectionsContainer">
 
   <div class="section-block" data-id="breaks">
-    <div class="section-handle" title="drag to reorder">⋮⋮ breaks</div>
+    <div style="width:100%;display:flex;justify-content:center">
+      <div class="section-handle" title="drag to reorder">⋮⋮ breaks</div>
+    </div>
     <div class="section-content">
       <div class="btn-row">
         <button class="break-btn" id="break5Btn">5 min break</button>
@@ -863,13 +903,11 @@ button:active { transform: scale(0.97); }
       </div>
       <div class="later-box" id="laterBox" style="display:none">
         <div class="color-picker-label" style="align-self:flex-start">later</div>
-        <div class="later-list" id="laterList"></div>
-        <div class="later-empty" id="laterEmpty">nothing here yet</div>
-        <div class="task-input-row">
-          <input id="laterAddInput" type="text" placeholder="add to later..." maxlength="100" />
-          <button class="task-add-btn" id="laterAddBtn">add</button>
+        <div id="laterGroupsContainer"></div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <button class="task-clear-btn" id="addLaterGroupBtn">+ add group</button>
         </div>
-        <div class="task-hint">drag tasks here from your main list &middot; drag back up to make them active</div>
+        <div class="task-hint">drag tasks from main list into any group &middot; drag back with ↑</div>
       </div>
     </div>
   </div>
@@ -1855,218 +1893,260 @@ function saveTasks() {
 }
 
 // Later list
-var laterTasks = [];
+var laterGroups = [];
 
 function loadLaterTasks() {
   try {
     var saved = localStorage.getItem('focusTimerLater');
-    if (saved) laterTasks = JSON.parse(saved);
-  } catch(e) { laterTasks = []; }
+    if (saved) {
+      var data = JSON.parse(saved);
+      // migrate old flat array to groups
+      if (Array.isArray(data) && data.length > 0 && data[0].text !== undefined) {
+        laterGroups = [{ name: 'general', tasks: data, open: true }];
+      } else {
+        laterGroups = data;
+      }
+    }
+  } catch(e) { laterGroups = []; }
+  if (laterGroups.length === 0) {
+    laterGroups = [{ name: 'general', tasks: [], open: true }];
+  }
   renderLaterTasks();
 }
 
 function saveLaterTasks() {
-  try { localStorage.setItem('focusTimerLater', JSON.stringify(laterTasks)); } catch(e) {}
+  try { localStorage.setItem('focusTimerLater', JSON.stringify(laterGroups)); } catch(e) {}
 }
 
 function renderLaterTasks() {
-  var list = document.getElementById('laterList');
-  var empty = document.getElementById('laterEmpty');
-  list.innerHTML = '';
-  empty.style.display = laterTasks.length === 0 ? 'block' : 'none';
+  var container = document.getElementById('laterGroupsContainer');
+  container.innerHTML = '';
 
-  var laterDragSrc = null;
+  laterGroups.forEach(function(group, gi) {
+    var groupEl = document.createElement('div');
+    groupEl.className = 'later-group';
 
-  for (var i = 0; i < laterTasks.length; i++) {
-    (function(ltask, idx) {
-      var item = document.createElement('div');
-      item.className = 'later-item';
-      item.draggable = true;
+    // Header
+    var header = document.createElement('div');
+    header.className = 'later-group-header';
 
-      item.addEventListener('dragstart', function(e) {
-        laterDragSrc = idx;
-        globalDragSource = 'later';
-        item.classList.add('dragging');
-        e.dataTransfer.setData('text/plain', 'later:' + idx);
-        e.dataTransfer.effectAllowed = 'move';
-      });
-      item.addEventListener('dragend', function() {
-        globalDragSource = null;
-        item.classList.remove('dragging');
-        list.classList.remove('drop-target');
-        var items = list.querySelectorAll('.later-item');
-        for (var z = 0; z < items.length; z++) {
-          items[z].classList.remove('drag-over-top', 'drag-over-bottom');
-        }
-      });
-      item.addEventListener('dragover', function(e) {
-        e.preventDefault();
-        var rect = item.getBoundingClientRect();
-        var mid = rect.top + rect.height / 2;
-        item.classList.remove('drag-over-top', 'drag-over-bottom');
-        if (e.clientY < mid) item.classList.add('drag-over-top');
-        else item.classList.add('drag-over-bottom');
-      });
-      item.addEventListener('dragleave', function() {
-        item.classList.remove('drag-over-top', 'drag-over-bottom');
-      });
-      item.addEventListener('drop', function(e) {
-        e.preventDefault();
-        item.classList.remove('drag-over-top', 'drag-over-bottom');
-        var data = e.dataTransfer.getData('text/plain');
+    var toggle = document.createElement('span');
+    toggle.className = 'later-group-toggle';
+    toggle.textContent = group.open !== false ? '▾' : '▸';
 
-        if (data && data.indexOf('task:') === 0) {
-          // main task dropped onto later item
-          var taskIdx = parseInt(data.replace('task:', ''));
-          var moved = tasks.splice(taskIdx, 1)[0];
-          var rect = item.getBoundingClientRect();
-          var insertAfter = e.clientY >= rect.top + rect.height / 2;
-          var ti = insertAfter ? idx + 1 : idx;
-          laterTasks.splice(ti, 0, { text: moved.text, done: false });
-          saveTasks();
-          saveLaterTasks();
-          renderTasks();
-          renderLaterTasks();
-          return;
-        }
-
-        if (laterDragSrc === null || laterDragSrc === idx) return;
-        var rect = item.getBoundingClientRect();
-        var insertAfter = e.clientY >= rect.top + rect.height / 2;
-        var moved = laterTasks.splice(laterDragSrc, 1)[0];
-        var ti = idx;
-        if (laterDragSrc < idx) ti--;
-        if (insertAfter) ti++;
-        laterTasks.splice(ti, 0, moved);
-        saveLaterTasks();
-        renderLaterTasks();
-      });
-
-      // promote to main list button
-      var promoteBtn = document.createElement('button');
-      promoteBtn.className = 'later-promote-btn';
-      promoteBtn.innerHTML = '&#8593;';
-      promoteBtn.title = 'move to main tasks';
-      promoteBtn.addEventListener('click', function() {
-        var moved = laterTasks.splice(idx, 1)[0];
-        tasks.push({ text: moved.text, done: false, starred: false, priority: 'none', symbol: 'task', due: '', subtasks: [] });
-        saveTasks();
-        saveLaterTasks();
-        renderTasks();
-        renderLaterTasks();
-      });
-
-      var text = document.createElement('span');
-      text.className = 'later-item-text';
-      text.textContent = ltask.text;
-      text.title = 'double-click to edit';
-      text.addEventListener('dblclick', function() {
-        var input = document.createElement('input');
-        input.type = 'text';
-        input.value = ltask.text;
-        input.style.cssText = 'flex:1;font-size:13px;border:none;border-bottom:1px solid #9b6ec8;outline:none;background:transparent;font-family:inherit;color:#555;padding:1px 2px;';
-        item.replaceChild(input, text);
-        input.focus();
-        input.select();
-        function finishEdit() {
-          var val = input.value.trim();
-          if (val) {
-            laterTasks[idx].text = val;
-            text.textContent = val;
-            ltask.text = val;
-            saveLaterTasks();
-          }
-          item.replaceChild(text, input);
-        }
-        input.addEventListener('blur', finishEdit);
-        input.addEventListener('keydown', function(ev) {
-          if (ev.key === 'Enter') finishEdit();
-          if (ev.key === 'Escape') item.replaceChild(text, input);
-        });
-      });
-
-      var del = document.createElement('button');
-      del.className = 'task-delete';
-      del.draggable = false;
-      del.textContent = '×';
-      del.addEventListener('click', function() {
-        laterTasks.splice(idx, 1);
-        saveLaterTasks();
-        renderLaterTasks();
-      });
-
-      item.appendChild(promoteBtn);
-      item.appendChild(text);
-      item.appendChild(del);
-      list.appendChild(item);
-    })(laterTasks[i], i);
-  }
-
-  // allow main tasks to be dropped onto the later list container itself
-  list.ondragover = function(e) {
-    if (globalDragSource === 'task') {
-      e.preventDefault();
-      e.stopPropagation();
-      list.classList.add('drop-target');
-    }
-  };
-  list.ondragleave = function(e) {
-    if (e.target === list) list.classList.remove('drop-target');
-  };
-  list.ondrop = function(e) {
-    list.classList.remove('drop-target');
-    if (globalDragSource !== 'task') return;
-    e.preventDefault();
-    e.stopPropagation();
-    var data = e.dataTransfer.getData('text/plain');
-    var taskIdx = parseInt(data.replace('task:', ''));
-    var moved = tasks.splice(taskIdx, 1)[0];
-    laterTasks.push({ text: moved.text, done: false });
-    saveTasks();
-    saveLaterTasks();
-    renderTasks();
-    renderLaterTasks();
-  };
-
-  // Also make the laterBox itself a drop target for when list is empty
-  var laterBox = document.getElementById('laterBox');
-  if (laterBox) {
-    laterBox.ondragover = function(e) {
-      if (globalDragSource === 'task') {
-        e.preventDefault();
-        e.stopPropagation();
-        list.classList.add('drop-target');
-      }
-    };
-    laterBox.ondragleave = function(e) {
-      if (!laterBox.contains(e.relatedTarget)) list.classList.remove('drop-target');
-    };
-    laterBox.ondrop = function(e) {
-      list.classList.remove('drop-target');
-      if (globalDragSource !== 'task') return;
-      e.preventDefault();
-      e.stopPropagation();
-      var data = e.dataTransfer.getData('text/plain');
-      var taskIdx = parseInt(data.replace('task:', ''));
-      var moved = tasks.splice(taskIdx, 1)[0];
-      laterTasks.push({ text: moved.text, done: false });
-      saveTasks();
+    var nameInput = document.createElement('input');
+    nameInput.className = 'later-group-name';
+    nameInput.value = group.name;
+    nameInput.maxLength = 40;
+    nameInput.addEventListener('change', function() {
+      laterGroups[gi].name = this.value.trim() || 'group';
       saveLaterTasks();
-      renderTasks();
+    });
+    nameInput.addEventListener('click', function(e) { e.stopPropagation(); });
+
+    var count = document.createElement('span');
+    count.className = 'later-group-count';
+    count.textContent = group.tasks.length > 0 ? group.tasks.length + ' items' : '';
+
+    var delBtn = document.createElement('button');
+    delBtn.className = 'later-group-del';
+    delBtn.textContent = '×';
+    delBtn.title = 'delete group';
+    delBtn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      if (laterGroups.length === 1) { alert('Keep at least one group.'); return; }
+      if (group.tasks.length > 0 && !confirm('Delete "' + group.name + '" and all its tasks?')) return;
+      laterGroups.splice(gi, 1);
+      saveLaterTasks();
       renderLaterTasks();
-    };
-  }
+    });
+
+    header.appendChild(toggle);
+    header.appendChild(nameInput);
+    header.appendChild(count);
+    header.appendChild(delBtn);
+
+    header.addEventListener('click', function() {
+      laterGroups[gi].open = laterGroups[gi].open === false ? true : false;
+      saveLaterTasks();
+      renderLaterTasks();
+    });
+
+    // Body
+    var body = document.createElement('div');
+    body.className = 'later-group-body' + (group.open === false ? ' collapsed' : '');
+
+    if (group.tasks.length === 0) {
+      var emptyMsg = document.createElement('div');
+      emptyMsg.className = 'later-group-empty';
+      emptyMsg.textContent = 'empty — drag tasks here or add below';
+      body.appendChild(emptyMsg);
+    }
+
+    // Task items
+    group.tasks.forEach(function(ltask, ti) {
+      (function(ltask, ti) {
+        var item = document.createElement('div');
+        item.className = 'later-item';
+        item.draggable = true;
+
+        item.addEventListener('dragstart', function(e) {
+          globalDragSource = 'later';
+          e.dataTransfer.setData('text/plain', 'later:' + gi + ':' + ti);
+          e.dataTransfer.effectAllowed = 'move';
+          item.classList.add('dragging');
+        });
+        item.addEventListener('dragend', function() {
+          globalDragSource = null;
+          item.classList.remove('dragging');
+          body.classList.remove('drop-target');
+        });
+        item.addEventListener('dragover', function(e) {
+          if (globalDragSource !== 'task' && globalDragSource !== 'later') return;
+          e.preventDefault(); e.stopPropagation();
+          var mid = item.getBoundingClientRect().top + item.getBoundingClientRect().height / 2;
+          item.classList.remove('drag-over-top', 'drag-over-bottom');
+          if (e.clientY < mid) item.classList.add('drag-over-top');
+          else item.classList.add('drag-over-bottom');
+        });
+        item.addEventListener('dragleave', function() {
+          item.classList.remove('drag-over-top', 'drag-over-bottom');
+        });
+        item.addEventListener('drop', function(e) {
+          e.preventDefault(); e.stopPropagation();
+          item.classList.remove('drag-over-top', 'drag-over-bottom');
+          var data = e.dataTransfer.getData('text/plain');
+          var insertAfter = e.clientY >= item.getBoundingClientRect().top + item.getBoundingClientRect().height / 2;
+
+          if (data.indexOf('task:') === 0) {
+            var taskIdx = parseInt(data.replace('task:', ''));
+            var moved = tasks.splice(taskIdx, 1)[0];
+            laterGroups[gi].tasks.splice(insertAfter ? ti + 1 : ti, 0, { text: moved.text, done: false });
+            saveTasks(); saveLaterTasks(); renderTasks(); renderLaterTasks();
+          } else if (data.indexOf('later:') === 0) {
+            var parts = data.split(':');
+            var srcGi = parseInt(parts[1]), srcTi = parseInt(parts[2]);
+            var moved = laterGroups[srcGi].tasks.splice(srcTi, 1)[0];
+            var destTi = ti;
+            if (srcGi === gi && srcTi < ti) destTi--;
+            if (insertAfter) destTi++;
+            laterGroups[gi].tasks.splice(destTi, 0, moved);
+            saveLaterTasks(); renderLaterTasks();
+          }
+        });
+
+        var promoteBtn = document.createElement('button');
+        promoteBtn.className = 'later-promote-btn';
+        promoteBtn.innerHTML = '&#8593;';
+        promoteBtn.title = 'move to main tasks';
+        promoteBtn.addEventListener('click', function() {
+          var moved = laterGroups[gi].tasks.splice(ti, 1)[0];
+          tasks.push({ text: moved.text, done: false, starred: false, priority: 'none', symbol: 'task', due: '', subtasks: [] });
+          saveTasks(); saveLaterTasks(); renderTasks(); renderLaterTasks();
+        });
+
+        var text = document.createElement('span');
+        text.className = 'later-item-text';
+        text.textContent = ltask.text;
+        text.title = 'double-click to edit';
+        text.addEventListener('dblclick', function() {
+          var input = document.createElement('input');
+          input.type = 'text';
+          input.value = ltask.text;
+          input.style.cssText = 'flex:1;font-size:13px;border:none;border-bottom:1px solid #9b6ec8;outline:none;background:transparent;font-family:inherit;color:#555;padding:1px 2px;';
+          item.replaceChild(input, text);
+          input.focus(); input.select();
+          function finishEdit() {
+            var val = input.value.trim();
+            if (val) { laterGroups[gi].tasks[ti].text = val; text.textContent = val; saveLaterTasks(); }
+            item.replaceChild(text, input);
+          }
+          input.addEventListener('blur', finishEdit);
+          input.addEventListener('keydown', function(ev) {
+            if (ev.key === 'Enter') finishEdit();
+            if (ev.key === 'Escape') item.replaceChild(text, input);
+          });
+        });
+
+        var del = document.createElement('button');
+        del.className = 'task-delete';
+        del.textContent = '×';
+        del.addEventListener('click', function() {
+          laterGroups[gi].tasks.splice(ti, 1);
+          saveLaterTasks(); renderLaterTasks();
+        });
+
+        item.appendChild(promoteBtn);
+        item.appendChild(text);
+        item.appendChild(del);
+        body.appendChild(item);
+      })(ltask, ti);
+    });
+
+    // Add row
+    var addRow = document.createElement('div');
+    addRow.className = 'later-group-add-row';
+    var addInput = document.createElement('input');
+    addInput.className = 'later-group-input';
+    addInput.placeholder = 'add to ' + group.name + '...';
+    addInput.maxLength = 100;
+    var addBtn = document.createElement('button');
+    addBtn.className = 'later-group-add-btn';
+    addBtn.textContent = 'add';
+    function doAdd() {
+      var val = addInput.value.trim();
+      if (!val) return;
+      laterGroups[gi].tasks.push({ text: val, done: false });
+      saveLaterTasks();
+      renderLaterTasks();
+    }
+    addBtn.addEventListener('click', doAdd);
+    addInput.addEventListener('keydown', function(e) { if (e.key === 'Enter') doAdd(); });
+    addRow.appendChild(addInput);
+    addRow.appendChild(addBtn);
+    body.appendChild(addRow);
+
+    // Drop zone on body
+    body.addEventListener('dragover', function(e) {
+      if (globalDragSource !== 'task' && globalDragSource !== 'later') return;
+      e.preventDefault(); e.stopPropagation();
+      body.classList.add('drop-target');
+    });
+    body.addEventListener('dragleave', function(e) {
+      if (!body.contains(e.relatedTarget)) body.classList.remove('drop-target');
+    });
+    body.addEventListener('drop', function(e) {
+      body.classList.remove('drop-target');
+      var data = e.dataTransfer.getData('text/plain');
+      if (data.indexOf('task:') === 0) {
+        e.preventDefault(); e.stopPropagation();
+        var taskIdx = parseInt(data.replace('task:', ''));
+        var moved = tasks.splice(taskIdx, 1)[0];
+        laterGroups[gi].tasks.push({ text: moved.text, done: false });
+        saveTasks(); saveLaterTasks(); renderTasks(); renderLaterTasks();
+      } else if (data.indexOf('later:') === 0) {
+        e.preventDefault(); e.stopPropagation();
+        var parts = data.split(':');
+        var srcGi = parseInt(parts[1]), srcTi = parseInt(parts[2]);
+        var moved = laterGroups[srcGi].tasks.splice(srcTi, 1)[0];
+        laterGroups[gi].tasks.push(moved);
+        saveLaterTasks(); renderLaterTasks();
+      }
+    });
+
+    groupEl.appendChild(header);
+    groupEl.appendChild(body);
+    container.appendChild(groupEl);
+  });
 }
 
-function addToLater() {
-  var input = document.getElementById('laterAddInput');
-  var text = input.value.trim();
-  if (!text) return;
-  laterTasks.push({ text: text, done: false });
+function addToLater(text, gi) {
+  gi = gi || 0;
+  var val = text || '';
+  if (!val) return;
+  laterGroups[gi].tasks.push({ text: val, done: false });
   saveLaterTasks();
   renderLaterTasks();
-  input.value = '';
-  input.focus();
 }
 
 
@@ -2521,12 +2601,12 @@ function renderTasks() {
       migrateBtn.title = 'send to later';
       migrateBtn.addEventListener('click', function() {
         var moved = tasks.splice(idx, 1)[0];
-        laterTasks.push({ text: moved.text, done: false });
+        if (laterGroups.length === 0) laterGroups.push({ name: 'general', tasks: [], open: true });
+        laterGroups[0].tasks.push({ text: moved.text, done: false });
         saveTasks();
         saveLaterTasks();
         renderTasks();
         renderLaterTasks();
-        // open later section if closed
         var laterBox = document.getElementById('laterBox');
         var laterBtn = document.getElementById('toggleLater');
         if (laterBox && laterBox.style.display === 'none') {
@@ -3265,9 +3345,10 @@ document.getElementById('toggleLater').addEventListener('click', function() {
   this.innerHTML = (open ? '&#9658;' : '&#9660;') + ' later';
 });
 
-document.getElementById('laterAddBtn').addEventListener('click', addToLater);
-document.getElementById('laterAddInput').addEventListener('keydown', function(e) {
-  if (e.key === 'Enter') addToLater();
+document.getElementById('addLaterGroupBtn').addEventListener('click', function() {
+  laterGroups.push({ name: 'new group', tasks: [], open: true });
+  saveLaterTasks();
+  renderLaterTasks();
 });
 
 document.getElementById('break5Btn').addEventListener('click', function() { startBreakTimer(5); });
