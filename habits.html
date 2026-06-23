@@ -195,7 +195,11 @@ body {
 <div class="container">
 
   <div class="section-header" style="padding-bottom:4px">
-    <span class="section-label">this week</span>
+    <span class="section-label" id="weekLabel">this week</span>
+    <div class="month-nav">
+      <button class="month-nav-btn" id="prevWeek">&#8249;</button>
+      <button class="month-nav-btn" id="nextWeek">&#8250;</button>
+    </div>
   </div>
   <div class="week-strip" id="weekStrip"></div>
 
@@ -256,6 +260,7 @@ var EMOJIS = [
 ];
 var habits = [];
 var weekStartMonday = false;
+var weekOffset = 0; // 0 = this week, -1 = last week, etc.
 var viewYear, viewMonth;
 var today = new Date();
 var todayStr = dateKey(today);
@@ -318,16 +323,27 @@ function renderWeek() {
   var days = weekStartMonday ? ['M','T','W','T','F','S','S'] : ['S','M','T','W','T','F','S'];
   var start = new Date(today);
   var offset = weekStartMonday ? (today.getDay() === 0 ? 6 : today.getDay() - 1) : today.getDay();
-  start.setDate(today.getDate() - offset);
+  start.setDate(today.getDate() - offset + (weekOffset * 7));
+
+  // Update label
+  var lbl = document.getElementById('weekLabel');
+  if (weekOffset === 0) lbl.textContent = 'this week';
+  else if (weekOffset === -1) lbl.textContent = 'last week';
+  else lbl.textContent = Math.abs(weekOffset) + ' weeks ago';
+
+  // Disable next button if already at current week
+  document.getElementById('nextWeek').style.opacity = weekOffset >= 0 ? '0.3' : '1';
+  document.getElementById('nextWeek').style.pointerEvents = weekOffset >= 0 ? 'none' : '';
+
   for (var i = 0; i < 7; i++) {
     var d = new Date(start);
     d.setDate(start.getDate() + i);
     var k = dateKey(d);
     var col = document.createElement('div');
     col.className = 'week-day';
-    var lbl = document.createElement('div');
-    lbl.className = 'week-day-label';
-    lbl.textContent = days[i];
+    var lbl2 = document.createElement('div');
+    lbl2.className = 'week-day-label';
+    lbl2.textContent = days[i];
     var num = document.createElement('div');
     num.className = 'week-day-num' + (k === todayStr ? ' today' : '');
     num.textContent = d.getDate();
@@ -339,7 +355,7 @@ function renderWeek() {
       e.textContent = h.emoji || '●';
       if (isDone(h, k)) emojis.appendChild(e);
     });
-    col.appendChild(lbl);
+    col.appendChild(lbl2);
     col.appendChild(num);
     col.appendChild(emojis);
     strip.appendChild(col);
@@ -702,6 +718,16 @@ function renderAll() {
   renderCalendar();
   renderHabits();
 }
+
+document.getElementById('prevWeek').addEventListener('click', function() {
+  weekOffset--;
+  renderWeek();
+});
+document.getElementById('nextWeek').addEventListener('click', function() {
+  if (weekOffset >= 0) return;
+  weekOffset++;
+  renderWeek();
+});
 
 // Week start toggle
 document.getElementById('weekStartBtn').addEventListener('click', function() {
