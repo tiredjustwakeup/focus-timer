@@ -380,6 +380,11 @@ button:active { transform: scale(0.97); }
 
 .subtask-list { display: flex; flex-direction: column; gap: 4px; margin: 6px 0 2px 38px; }
 .subtask-item { display: flex; align-items: center; gap: 6px; padding: 2px 0; }
+.subtask-action {
+  font-size: 10px; color: #ccc; background: none; border: none;
+  cursor: pointer; padding: 0 1px; line-height: 1; flex-shrink: 0;
+}
+.subtask-action:hover { color: #999; }
 .subtask-item.dragging { opacity: 0.4; }
 .subtask-item.drag-over-top { border-top: 2px solid #2d9e4f; }
 .subtask-item.drag-over-bottom { border-bottom: 2px solid #2d9e4f; }
@@ -1982,6 +1987,7 @@ function renderLaterTasks() {
 
       var del = document.createElement('button');
       del.className = 'task-delete';
+      del.draggable = false;
       del.textContent = '×';
       del.addEventListener('click', function() {
         laterTasks.splice(idx, 1);
@@ -2299,9 +2305,9 @@ function renderTasks() {
   empty.style.display = 'none';
 
   var dragSrcIdx = null;
-  var dragSrcType = null; // 'task' or 'subtask'
-  var dragSrcParentIdx = null; // for subtasks, index of parent task
-  var dragSrcSubIdx = null; // for subtasks, index within parent's subtasks
+  var dragSrcType = null;
+  var dragSrcParentIdx = null;
+  var dragSrcSubIdx = null;
 
   for (var k = 0; k < tasks.length; k++) {
     (function(task, idx) {
@@ -2316,6 +2322,7 @@ function renderTasks() {
         item.classList.add('dragging');
         e.dataTransfer.setData('text/plain', 'task:' + idx);
         e.dataTransfer.effectAllowed = 'move';
+        e.stopPropagation();
       });
 
       item.addEventListener('dragend', function() {
@@ -2329,7 +2336,9 @@ function renderTasks() {
       });
 
       item.addEventListener('dragover', function(e) {
+        if (globalDragSource !== 'task') return;
         e.preventDefault();
+        e.stopPropagation();
         e.dataTransfer.dropEffect = 'move';
         var rect = item.getBoundingClientRect();
         var topZone = rect.top + rect.height * 0.25;
@@ -2344,44 +2353,42 @@ function renderTasks() {
         }
       });
 
-      item.addEventListener('dragleave', function() {
+      item.addEventListener('dragleave', function(e) {
         item.classList.remove('drag-over-top', 'drag-over-bottom', 'drag-over-middle');
+        e.stopPropagation();
       });
 
       item.addEventListener('drop', function(e) {
+        if (globalDragSource !== 'task' && globalDragSource !== 'subtask') return;
         e.preventDefault();
-        if (dragSrcType === 'task') {
+        e.stopPropagation();
+        item.classList.remove('drag-over-top', 'drag-over-bottom', 'drag-over-middle');
+
+        if (globalDragSource === 'task') {
           if (dragSrcIdx === null || dragSrcIdx === idx) return;
           var rect = item.getBoundingClientRect();
           var topZone = rect.top + rect.height * 0.25;
           var bottomZone = rect.top + rect.height * 0.75;
-
           if (e.clientY >= topZone && e.clientY <= bottomZone) {
             var movedTask = tasks.splice(dragSrcIdx, 1)[0];
             var targetTask = (dragSrcIdx < idx) ? tasks[idx - 1] : tasks[idx];
             if (!targetTask.subtasks) targetTask.subtasks = [];
             targetTask.subtasks.push({ text: movedTask.text, done: movedTask.done });
-            saveTasks();
-            renderTasks();
-            return;
+            saveTasks(); renderTasks(); return;
           }
-
           var insertAfter = e.clientY >= bottomZone;
           var moved = tasks.splice(dragSrcIdx, 1)[0];
           var targetIdx = idx;
           if (dragSrcIdx < idx) targetIdx--;
           if (insertAfter) targetIdx++;
           tasks.splice(targetIdx, 0, moved);
-          saveTasks();
-          renderTasks();
-        } else if (dragSrcType === 'subtask') {
-          // a subtask was dropped onto this task: move it into this task's subtasks
+          saveTasks(); renderTasks();
+        } else if (globalDragSource === 'subtask') {
           var parent = tasks[dragSrcParentIdx];
           var movedSub = parent.subtasks.splice(dragSrcSubIdx, 1)[0];
           if (!task.subtasks) task.subtasks = [];
           task.subtasks.push(movedSub);
-          saveTasks();
-          renderTasks();
+          saveTasks(); renderTasks();
         }
       });
 
@@ -2392,6 +2399,7 @@ function renderTasks() {
 
       var cb = document.createElement('input');
       cb.type = 'checkbox';
+      cb.draggable = false;
       cb.checked = task.done;
       cb.addEventListener('change', function() {
         tasks[idx].done = this.checked;
@@ -2400,6 +2408,7 @@ function renderTasks() {
       });
 
       var star = document.createElement('button');
+      star.draggable = false;
       var priority = task.priority || (task.starred ? 'high' : 'none');
       var starStates = ['none', 'high', 'medium', 'event'];
       function getStarClass(p) {
@@ -2437,6 +2446,7 @@ function renderTasks() {
 
       var timerBtn = document.createElement('button');
       timerBtn.className = 'task-timer-btn';
+      timerBtn.draggable = false;
       timerBtn.innerHTML = '⏱';
       timerBtn.title = 'set as active task';
       timerBtn.addEventListener('click', function(e) {
@@ -2454,6 +2464,7 @@ function renderTasks() {
 
       var main = document.createElement('div');
       main.className = 'task-item-main';
+      main.draggable = false;
       main.title = 'double-click to edit';
 
       var text = document.createElement('span');
@@ -2505,6 +2516,7 @@ function renderTasks() {
 
       var migrateBtn = document.createElement('button');
       migrateBtn.className = 'task-migrate-btn';
+      migrateBtn.draggable = false;
       migrateBtn.textContent = '>';
       migrateBtn.title = 'send to later';
       migrateBtn.addEventListener('click', function() {
@@ -2525,6 +2537,7 @@ function renderTasks() {
 
       var subToggle = document.createElement('button');
       subToggle.className = 'subtask-toggle';
+      subToggle.draggable = false;
       subToggle.innerHTML = '&#43;';
       subToggle.title = 'add subtask';
       subToggle.addEventListener('click', function() {
@@ -2665,7 +2678,7 @@ function renderTasks() {
             });
 
             var subEditBtn = document.createElement('button');
-            subEditBtn.className = 'task-edit-btn';
+            subEditBtn.className = 'subtask-action';
             subEditBtn.innerHTML = '&#9998;';
             subEditBtn.title = 'edit subtask';
             subEditBtn.addEventListener('click', function() {
@@ -2696,7 +2709,7 @@ function renderTasks() {
             });
 
             var subPromote = document.createElement('button');
-            subPromote.className = 'task-edit-btn';
+            subPromote.className = 'subtask-action';
             subPromote.innerHTML = '&#8593;';
             subPromote.title = 'make this its own task';
             subPromote.addEventListener('click', function() {
@@ -2707,7 +2720,7 @@ function renderTasks() {
             });
 
             var subDel = document.createElement('button');
-            subDel.className = 'subtask-delete';
+            subDel.className = 'subtask-action';
             subDel.textContent = '×';
             subDel.addEventListener('click', function() {
               task.subtasks.splice(sidx, 1);
