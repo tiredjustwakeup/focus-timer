@@ -259,7 +259,7 @@ var EMOJIS = [
   '🔥','⚡','🏆','🎉','✨','🙏','🫶','💚','🌟','🗝️'
 ];
 var habits = [];
-var weekStartMonday = false;
+var weekStartMonday = true;
 var weekOffset = 0; // 0 = this week, -1 = last week, etc.
 var viewYear, viewMonth;
 var today = new Date();
@@ -303,11 +303,12 @@ function calcStreak(habit) {
   return streak;
 }
 
-function calcWeekDone(habit) {
+function calcWeekDone(habit, offset) {
+  offset = offset || 0;
   var count = 0;
   var start = new Date(today);
-  var offset = weekStartMonday ? (today.getDay() === 0 ? 6 : today.getDay() - 1) : today.getDay();
-  start.setDate(today.getDate() - offset);
+  var dayOffset = weekStartMonday ? (today.getDay() === 0 ? 6 : today.getDay() - 1) : today.getDay();
+  start.setDate(today.getDate() - dayOffset + (offset * 7));
   for (var i = 0; i < 7; i++) {
     var d = new Date(start);
     d.setDate(start.getDate() + i);
@@ -572,7 +573,7 @@ function renderHabits() {
     streakEl.className = 'habit-streak';
     streakEl.textContent = streak > 0 ? streak + '🔥' : '';
 
-    var weekDone = calcWeekDone(h);
+    var weekDone = calcWeekDone(h, weekOffset);
     var weekGoal = h.weekGoal || 0;
     var weekEl = document.createElement('span');
     weekEl.className = 'habit-week-progress';
