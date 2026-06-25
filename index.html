@@ -753,6 +753,10 @@ button:active { transform: scale(0.97); }
           <input type="range" id="oceanVolume" min="0" max="1" step="0.02" value="0.3" style="accent-color:#0077b6" />
           <button class="sound-toggle" id="oceanBtn">off</button>
         </div>
+        <div class="sound-row">
+          <span class="sound-row-label">🪷 breath</span>
+          <input type="range" id="breathVolume" min="0" max="1" step="0.02" value="0.4" style="accent-color:#56cfe1" />
+        </div>
       </div>
     </div>
   </div>
@@ -839,7 +843,7 @@ button:active { transform: scale(0.97); }
             <button class="task-clear-btn" id="cancelImportBtn">cancel</button>
           </div>
         </div>
-        <div class="task-hint">tap a task name to set it as your active timer task &middot; drag onto another task to nest it &middot; use &#8593; on a subtask to make it its own task &middot; click &#9734; to cycle priority</div>
+        <div class="task-hint">double-click to edit &middot; triple-click to set as active timer task &middot; drag &#8942;&#8942; to reorder &middot; drag onto another task to nest it &middot; &#8593; on a subtask to promote it &middot; click &#9734; to cycle priority</div>
         <div style="display:flex;gap:14px;justify-content:center">
           <button class="task-clear-btn" id="sortPriorityBtn">sort by priority</button>
           <button class="task-clear-btn" id="clearDoneBtn">clear completed</button>
@@ -1382,6 +1386,7 @@ function finishEarly() {
   if (!running && remaining === TOTAL) return;
   clearInterval(timerInterval);
   clearInterval(breathInterval);
+  stopBreathSound();
   running = false;
   breathActive = false;
   document.querySelector('.sticky-header').classList.remove('running');
@@ -1416,6 +1421,7 @@ function pauseTimer() {
 function resetTimer() {
   clearInterval(timerInterval);
   clearInterval(breathInterval);
+  stopBreathSound();
   running = false;
   breathActive = false;
   var wasBreak = isBreak;
@@ -1460,6 +1466,85 @@ function addUrge() {
   startBreath();
 }
 
+var breathOscNodes = [];
+var breathGain = null;
+
+function startBreathCycle() {
+  try {
+    var ctx = getAudioCtx();
+    stopBreathSound();
+
+    var sliderVal = parseFloat(document.getElementById('breathVolume').value) || 0.4;
+    var maxVol = sliderVal * 0.35;
+
+    // --- INHALE: single tone, swells up ---
+    var inhaleGain = ctx.createGain();
+    inhaleGain.gain.setValueAtTime(0, ctx.currentTime);
+    inhaleGain.connect(ctx.destination);
+
+    var inhaleOsc = ctx.createOscillator();
+    inhaleOsc.type = 'sine';
+    inhaleOsc.frequency.value = 174;
+    inhaleOsc.connect(inhaleGain);
+    inhaleOsc.start();
+
+    inhaleGain.gain.linearRampToValueAtTime(maxVol, ctx.currentTime + 4);
+    inhaleGain.gain.linearRampToValueAtTime(0, ctx.currentTime + 4.8);
+
+    // --- EXHALE: two-tone harmony, fades in then out ---
+    var exhaleGain = ctx.createGain();
+    exhaleGain.gain.setValueAtTime(0, ctx.currentTime);
+    exhaleGain.connect(ctx.destination);
+
+    var exOsc1 = ctx.createOscillator();
+    exOsc1.type = 'sine';
+    exOsc1.frequency.value = 174; // root
+
+    var exOsc2 = ctx.createOscillator();
+    exOsc2.type = 'sine';
+    exOsc2.frequency.value = 261; // perfect fifth above (harmony)
+
+    var panL = ctx.createStereoPanner ? ctx.createStereoPanner() : null;
+    var panR = ctx.createStereoPanner ? ctx.createStereoPanner() : null;
+    if (panL) { panL.pan.value = -0.3; exOsc1.connect(panL); panL.connect(exhaleGain); }
+    else { exOsc1.connect(exhaleGain); }
+    if (panR) { panR.pan.value = 0.3; exOsc2.connect(panR); panR.connect(exhaleGain); }
+    else { exOsc2.connect(exhaleGain); }
+
+    exOsc1.start();
+    exOsc2.start();
+
+    exhaleGain.gain.linearRampToValueAtTime(0, ctx.currentTime + 4.2);
+    exhaleGain.gain.linearRampToValueAtTime(maxVol * 0.8, ctx.currentTime + 5.2);
+    exhaleGain.gain.linearRampToValueAtTime(0, ctx.currentTime + 8);
+
+    breathOscNodes = [inhaleOsc, exOsc1, exOsc2];
+    breathGain = inhaleGain; // so stopBreathSound can clean up
+
+    setTimeout(function() {
+      try { inhaleOsc.stop(); } catch(e) {}
+      setTimeout(function() {
+        try { exOsc1.stop(); exOsc2.stop(); } catch(e) {}
+      }, 4000);
+    }, 5000);
+
+  } catch(e) {}
+}
+
+function stopBreathSound() {
+  try {
+    breathOscNodes.forEach(function(o) { try { o.stop(); } catch(e) {} });
+    breathOscNodes = [];
+    breathGain = null;
+  } catch(e) {}
+}
+
+function startBreathSound(phase) {
+  // phase is now handled inside startBreathCycle, this is kept for compatibility
+  if (phase === 'in') startBreathCycle();
+  // exhale uses the same ongoing nodes, no restart needed
+}
+
 function startBreath() {
   if (breathActive) return;
   breathActive = true;
@@ -1476,6 +1561,7 @@ function startBreath() {
   countdown.textContent = '4s';
   ring.style.transition = 'transform 4s ease-in-out';
   ring.style.transform = 'scale(2)';
+  startBreathSound('in');
   if (breathInterval) clearInterval(breathInterval);
   breathInterval = setInterval(function() {
     secs--;
@@ -1488,9 +1574,11 @@ function startBreath() {
         instruction.textContent = 'breathe out';
         countdown.textContent = '4s';
         ring.style.transform = 'scale(1)';
+        startBreathSound('out');
       } else {
         clearInterval(breathInterval);
         breathActive = false;
+        stopBreathSound();
         instruction.textContent = 'good';
         countdown.style.opacity = '0';
         setTimeout(function() {
@@ -2560,7 +2648,7 @@ function renderTasks() {
       var main = document.createElement('div');
       main.className = 'task-item-main';
       main.draggable = false;
-      main.title = 'double-click to edit';
+      main.title = 'double-click to edit · triple-click to set as active task';
 
       var text = document.createElement('span');
       text.className = 'task-item-text' + (task.done ? ' done' : '');
@@ -2574,28 +2662,49 @@ function renderTasks() {
         main.appendChild(due);
       }
 
-      main.addEventListener('dblclick', function(e) {
+      var mainClickCount = 0;
+      var mainClickTimer = null;
+      main.addEventListener('click', function(e) {
         e.stopPropagation();
-        var input = document.createElement('input');
-        input.type = 'text';
-        input.className = 'task-edit-input';
-        input.value = task.text;
-        input.maxLength = 100;
-        main.innerHTML = '';
-        main.appendChild(input);
-        input.focus();
-        input.select();
-        function finishEdit() {
-          var newText = input.value.trim();
-          if (newText) { tasks[idx].text = newText; saveTasks(); }
-          renderTasks();
-        }
-        input.addEventListener('keydown', function(ev) {
-          if (ev.key === 'Enter') finishEdit();
-          if (ev.key === 'Escape') renderTasks();
-        });
-        input.addEventListener('blur', finishEdit);
-        input.addEventListener('click', function(ev) { ev.stopPropagation(); });
+        mainClickCount++;
+        clearTimeout(mainClickTimer);
+        mainClickTimer = setTimeout(function() {
+          if (mainClickCount === 2) {
+            // double click -- edit
+            var input = document.createElement('input');
+            input.type = 'text';
+            input.className = 'task-edit-input';
+            input.value = task.text;
+            input.maxLength = 100;
+            main.innerHTML = '';
+            main.appendChild(input);
+            input.focus();
+            input.select();
+            function finishEdit() {
+              var newText = input.value.trim();
+              if (newText) { tasks[idx].text = newText; saveTasks(); }
+              renderTasks();
+            }
+            input.addEventListener('keydown', function(ev) {
+              if (ev.key === 'Enter') finishEdit();
+              if (ev.key === 'Escape') renderTasks();
+            });
+            input.addEventListener('blur', finishEdit);
+            input.addEventListener('click', function(ev) { ev.stopPropagation(); });
+          } else if (mainClickCount >= 3) {
+            // triple click -- set as active timer task
+            document.getElementById('taskName').value = task.text;
+            document.getElementById('stickyTask').textContent = task.text;
+            var dueEl = document.getElementById('stickyDue');
+            if (task.due) {
+              dueEl.textContent = fmtDue(task.due);
+              dueEl.style.display = 'block';
+            } else {
+              dueEl.style.display = 'none';
+            }
+          }
+          mainClickCount = 0;
+        }, 280);
       });
 
       var editBtn = null;
@@ -2764,12 +2873,45 @@ function renderTasks() {
             var subText = document.createElement('span');
             subText.className = 'subtask-text' + (sub.done ? ' done' : '');
             subText.textContent = sub.text;
-            subText.title = 'double-click to set as active task';
-            subText.addEventListener('dblclick', function() {
-              var combined = task.text + ': ' + sub.text;
-              document.getElementById('taskName').value = combined;
-              document.getElementById('stickyTask').textContent = combined;
-              document.getElementById('stickyDue').style.display = 'none';
+            subText.title = 'double-click to edit · triple-click to set as active task';
+
+            var subClickCount = 0;
+            var subClickTimer = null;
+            subText.addEventListener('click', function(e) {
+              e.stopPropagation();
+              subClickCount++;
+              clearTimeout(subClickTimer);
+              subClickTimer = setTimeout(function() {
+                if (subClickCount === 2) {
+                  // double click -- edit inline
+                  var subInputEdit = document.createElement('input');
+                  subInputEdit.type = 'text';
+                  subInputEdit.className = 'task-edit-input';
+                  subInputEdit.value = sub.text;
+                  subInputEdit.maxLength = 100;
+                  subItem.innerHTML = '';
+                  subItem.appendChild(subInputEdit);
+                  subInputEdit.focus();
+                  subInputEdit.select();
+                  function finishSubEdit() {
+                    var newText = subInputEdit.value.trim();
+                    if (newText) { task.subtasks[sidx].text = newText; saveTasks(); }
+                    renderTasks();
+                  }
+                  subInputEdit.addEventListener('keydown', function(ev) {
+                    if (ev.key === 'Enter') finishSubEdit();
+                    if (ev.key === 'Escape') renderTasks();
+                  });
+                  subInputEdit.addEventListener('blur', finishSubEdit);
+                } else if (subClickCount >= 3) {
+                  // triple click -- set as active timer task
+                  var combined = task.text + ': ' + sub.text;
+                  document.getElementById('taskName').value = combined;
+                  document.getElementById('stickyTask').textContent = combined;
+                  document.getElementById('stickyDue').style.display = 'none';
+                }
+                subClickCount = 0;
+              }, 280);
             });
 
             var subEditBtn = document.createElement('button');
@@ -2786,16 +2928,11 @@ function renderTasks() {
               subItem.appendChild(subInputEdit);
               subInputEdit.focus();
               subInputEdit.select();
-
               function finishSubEdit() {
                 var newText = subInputEdit.value.trim();
-                if (newText) {
-                  task.subtasks[sidx].text = newText;
-                  saveTasks();
-                }
+                if (newText) { task.subtasks[sidx].text = newText; saveTasks(); }
                 renderTasks();
               }
-
               subInputEdit.addEventListener('keydown', function(ev) {
                 if (ev.key === 'Enter') finishSubEdit();
                 if (ev.key === 'Escape') renderTasks();
