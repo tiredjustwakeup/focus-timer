@@ -498,6 +498,22 @@ button:active { transform: scale(0.97); }
 .template-modal-btn.cancel { color: #999; border: none; }
 
 .seal-trigger-row { width: 100%; display: flex; justify-content: center; }
+.ritual-section {
+  width: 100%; background: #fdfbf6; border: 1px solid #e8dfc8;
+  border-radius: 12px; padding: 12px 14px;
+  display: flex; flex-direction: column; gap: 6px;
+}
+.ritual-header { display: flex; align-items: center; justify-content: space-between; }
+.ritual-title { font-size: 11px; color: #c9a83a; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600; }
+.ritual-item { display: flex; align-items: center; gap: 8px; padding: 4px 0; }
+.ritual-item input[type=checkbox] { accent-color: #c9a83a; width: 15px; height: 15px; cursor: pointer; flex-shrink: 0; }
+.ritual-item-text { font-size: 13px; color: #555; flex: 1; }
+.ritual-item-text.checked { text-decoration: line-through; color: #bbb; }
+.ritual-del { font-size: 13px; color: #ddd; background: none; border: none; cursor: pointer; padding: 0 2px; line-height: 1; display: none; }
+.ritual-del:hover { color: #c44; }
+.ritual-section.editing .ritual-del { display: block; }
+.ritual-progress { font-size: 11px; color: #bbb; text-align: center; padding-top: 2px; }
+.ritual-progress.complete { color: #c9a83a; font-weight: 500; }
 .seal-trigger-btn {
   font-size: 12px; padding: 6px 16px; border: 1px solid #c9a83a;
   border-radius: 20px; background: #fef8e8; color: #7a6010;
@@ -669,6 +685,20 @@ button:active { transform: scale(0.97); }
       <button id="pauseBtn" style="display:none">pause</button>
       <button id="resetBtn">reset</button>
       <button id="finishBtn" style="display:none">I'm finished</button>
+    </div>
+
+    <div class="ritual-section" id="ritualSection" style="display:flex">
+      <div class="ritual-header">
+        <span class="ritual-title">pre-session ritual</span>
+        <button class="task-clear-btn" id="editRitualBtn">edit</button>
+      </div>
+      <div id="ritualList"></div>
+      <div id="ritualAddRow" style="display:none;gap:6px;margin-top:6px">
+        <input id="ritualAddInput" type="text" placeholder="add a ritual step..." maxlength="80"
+          style="flex:1;font-size:12px;padding:5px 8px;border:1px solid #e8e8e8;border-radius:6px;outline:none;font-family:inherit;" />
+        <button class="task-add-btn" id="ritualAddBtn" style="font-size:12px;padding:5px 10px;">add</button>
+      </div>
+      <div class="ritual-progress" id="ritualProgress"></div>
     </div>
 
     <div class="seal-trigger-row" id="sealTriggerRow" style="display:flex">
@@ -957,6 +987,9 @@ var isBreak = false;
 var distractions = 0;
 var urges = 0;
 var sessions = 0;
+var ritualItems = [];
+var ritualChecked = [];
+var ritualEditing = false;
 var trackers = [];
 var breathInterval = null;
 var breathActive = false;
@@ -1023,6 +1056,9 @@ function setTime(mins, btn) {
 function updateSealVisibility(mins) {
   var row = document.getElementById('sealTriggerRow');
   row.style.display = 'flex';
+  var ritualSection = document.getElementById('ritualSection');
+  ritualSection.style.display = 'flex';
+  resetRitual();
 }
 
 function setCustomTime() {
@@ -3290,11 +3326,122 @@ document.getElementById('bgOpacity').addEventListener('input', function() {
   try { localStorage.setItem('focusTimerBgOpacity', val); } catch(e) {}
 });
 
+// ---- RITUAL ----
+var DEFAULT_RITUAL = [
+  'phone face down or away',
+  'water nearby',
+  'headphones on',
+  'tabs/apps closed',
+  'set your intention'
+];
+
+function loadRitual() {
+  try {
+    var saved = localStorage.getItem('focusTimerRitual');
+    if (saved) ritualItems = JSON.parse(saved);
+    else ritualItems = DEFAULT_RITUAL.slice();
+  } catch(e) { ritualItems = DEFAULT_RITUAL.slice(); }
+  ritualChecked = new Array(ritualItems.length).fill(false);
+  renderRitual();
+}
+
+function saveRitual() {
+  try { localStorage.setItem('focusTimerRitual', JSON.stringify(ritualItems)); } catch(e) {}
+}
+
+function resetRitual() {
+  ritualChecked = new Array(ritualItems.length).fill(false);
+  renderRitual();
+}
+
+function renderRitual() {
+  var list = document.getElementById('ritualList');
+  var progress = document.getElementById('ritualProgress');
+  var section = document.getElementById('ritualSection');
+  list.innerHTML = '';
+
+  if (ritualEditing) section.classList.add('editing');
+  else section.classList.remove('editing');
+
+  var doneCount = 0;
+  ritualItems.forEach(function(item, i) {
+    var row = document.createElement('div');
+    row.className = 'ritual-item';
+
+    var cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.checked = ritualChecked[i] || false;
+    if (cb.checked) doneCount++;
+    cb.addEventListener('change', function() {
+      ritualChecked[i] = this.checked;
+      textEl.className = 'ritual-item-text' + (this.checked ? ' checked' : '');
+      updateRitualProgress();
+    });
+
+    var textEl = document.createElement('span');
+    textEl.className = 'ritual-item-text' + (ritualChecked[i] ? ' checked' : '');
+    textEl.textContent = item;
+
+    var del = document.createElement('button');
+    del.className = 'ritual-del';
+    del.textContent = '×';
+    del.addEventListener('click', function() {
+      ritualItems.splice(i, 1);
+      ritualChecked.splice(i, 1);
+      saveRitual();
+      renderRitual();
+    });
+
+    row.appendChild(cb);
+    row.appendChild(textEl);
+    row.appendChild(del);
+    list.appendChild(row);
+  });
+
+  updateRitualProgress();
+}
+
+function updateRitualProgress() {
+  var done = ritualChecked.filter(Boolean).length;
+  var total = ritualItems.length;
+  var progress = document.getElementById('ritualProgress');
+  if (total === 0) { progress.textContent = ''; return; }
+  if (done === total) {
+    progress.textContent = 'all set ✦ ready to seal';
+    progress.className = 'ritual-progress complete';
+  } else {
+    progress.textContent = done + ' / ' + total + ' complete';
+    progress.className = 'ritual-progress';
+  }
+}
+
+document.getElementById('editRitualBtn').addEventListener('click', function() {
+  ritualEditing = !ritualEditing;
+  this.textContent = ritualEditing ? 'done' : 'edit';
+  document.getElementById('ritualAddRow').style.display = ritualEditing ? 'flex' : 'none';
+  renderRitual();
+});
+
+document.getElementById('ritualAddBtn').addEventListener('click', function() {
+  var val = document.getElementById('ritualAddInput').value.trim();
+  if (!val) return;
+  ritualItems.push(val);
+  ritualChecked.push(false);
+  saveRitual();
+  document.getElementById('ritualAddInput').value = '';
+  renderRitual();
+});
+
+document.getElementById('ritualAddInput').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') document.getElementById('ritualAddBtn').click();
+});
+
 loadTasks();
 loadTemplates();
 loadStats();
 loadTrackers();
 loadLaterTasks();
+loadRitual();
 
 // Scratchpad
 var scratchSaveTimer = null;
