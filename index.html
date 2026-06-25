@@ -687,18 +687,41 @@ button:active { transform: scale(0.97); }
       <button id="finishBtn" style="display:none">I'm finished</button>
     </div>
 
+    <div class="ritual-section" id="morningRitualSection" style="display:flex">
+      <div class="ritual-header" id="morningRitualHeader" style="cursor:pointer">
+        <span class="ritual-title">🌅 daily start ritual <span id="morningToggleArrow" style="font-size:10px;color:#c9a83a">▾</span></span>
+        <div style="display:flex;gap:6px;align-items:center">
+          <button class="task-clear-btn" id="resetMorningBtn" title="reset all checks">reset</button>
+          <button class="task-clear-btn" id="editMorningBtn">edit</button>
+        </div>
+      </div>
+      <div id="morningRitualBody">
+        <div id="morningRitualList"></div>
+        <div id="morningAddRow" style="display:none;gap:6px;margin-top:6px">
+          <input id="morningAddInput" type="text" placeholder="add a morning step..." maxlength="80"
+            style="flex:1;font-size:12px;padding:5px 8px;border:1px solid #e8e8e8;border-radius:6px;outline:none;font-family:inherit;" />
+          <button class="task-add-btn" id="morningAddBtn" style="font-size:12px;padding:5px 10px;">add</button>
+        </div>
+        <div class="ritual-progress" id="morningProgress"></div>
+      </div>
+    </div>
+
     <div class="ritual-section" id="ritualSection" style="display:flex">
-      <div class="ritual-header">
-        <span class="ritual-title">pre-session ritual</span>
-        <button class="task-clear-btn" id="editRitualBtn">edit</button>
+      <div class="ritual-header" id="sessionRitualHeader" style="cursor:pointer">
+        <span class="ritual-title">🎯 session ritual <span id="sessionToggleArrow" style="font-size:10px;color:#c9a83a">▾</span></span>
+        <div style="display:flex;gap:6px;align-items:center">
+          <button class="task-clear-btn" id="editRitualBtn">edit</button>
+        </div>
       </div>
-      <div id="ritualList"></div>
-      <div id="ritualAddRow" style="display:none;gap:6px;margin-top:6px">
-        <input id="ritualAddInput" type="text" placeholder="add a ritual step..." maxlength="80"
-          style="flex:1;font-size:12px;padding:5px 8px;border:1px solid #e8e8e8;border-radius:6px;outline:none;font-family:inherit;" />
-        <button class="task-add-btn" id="ritualAddBtn" style="font-size:12px;padding:5px 10px;">add</button>
+      <div id="sessionRitualBody">
+        <div id="ritualList"></div>
+        <div id="ritualAddRow" style="display:none;gap:6px;margin-top:6px">
+          <input id="ritualAddInput" type="text" placeholder="add a session step..." maxlength="80"
+            style="flex:1;font-size:12px;padding:5px 8px;border:1px solid #e8e8e8;border-radius:6px;outline:none;font-family:inherit;" />
+          <button class="task-add-btn" id="ritualAddBtn" style="font-size:12px;padding:5px 10px;">add</button>
+        </div>
+        <div class="ritual-progress" id="ritualProgress"></div>
       </div>
-      <div class="ritual-progress" id="ritualProgress"></div>
     </div>
 
     <div class="seal-trigger-row" id="sealTriggerRow" style="display:flex">
@@ -987,9 +1010,6 @@ var isBreak = false;
 var distractions = 0;
 var urges = 0;
 var sessions = 0;
-var ritualItems = [];
-var ritualChecked = [];
-var ritualEditing = false;
 var trackers = [];
 var breathInterval = null;
 var breathActive = false;
@@ -2121,7 +2141,7 @@ function renderLaterTasks() {
         var taskIdx = parseInt(data.replace('task:', ''));
         if (isNaN(taskIdx)) return;
         var moved = tasks.splice(taskIdx, 1)[0];
-        laterGroups[gi].tasks.push({ text: moved.text, done: false });
+        laterGroups[gi].tasks.push({ text: moved.text, done: false, subtasks: moved.subtasks || [] });
         saveTasks(); saveLaterTasks(); renderTasks(); renderLaterTasks();
       } else if (src === 'later' && data.indexOf('later:') === 0) {
         var parts = data.split(':');
@@ -2179,7 +2199,7 @@ function renderLaterTasks() {
         if (globalDragSource === 'task' && data.indexOf('task:') === 0) {
           var taskIdx = parseInt(data.replace('task:', ''));
           var moved = tasks.splice(taskIdx, 1)[0];
-          laterGroups[gi].tasks.splice(insertAfter ? ti + 1 : ti, 0, { text: moved.text, done: false });
+          laterGroups[gi].tasks.splice(insertAfter ? ti + 1 : ti, 0, { text: moved.text, done: false, subtasks: moved.subtasks || [] });
           saveTasks(); saveLaterTasks(); renderTasks(); renderLaterTasks();
         } else if (globalDragSource === 'later' && data.indexOf('later:') === 0) {
           var parts = data.split(':');
@@ -2199,7 +2219,7 @@ function renderLaterTasks() {
       promoteBtn.title = 'move to main tasks';
       promoteBtn.addEventListener('click', function() {
         var moved = laterGroups[gi].tasks.splice(ti, 1)[0];
-        tasks.push({ text: moved.text, done: false, starred: false, priority: 'none', symbol: 'task', due: '', subtasks: [] });
+        tasks.push({ text: moved.text, done: false, starred: false, priority: 'none', symbol: 'task', due: moved.due || '', subtasks: moved.subtasks || [] });
         saveTasks(); saveLaterTasks(); renderTasks(); renderLaterTasks();
       });
 
@@ -2226,6 +2246,19 @@ function renderLaterTasks() {
         });
       });
 
+      // show subtasks if any
+      var subtaskWrap = null;
+      if (ltask.subtasks && ltask.subtasks.length > 0) {
+        subtaskWrap = document.createElement('div');
+        subtaskWrap.style.cssText = 'padding-left:20px;display:flex;flex-direction:column;gap:2px;margin-top:2px;';
+        ltask.subtasks.forEach(function(sub) {
+          var subRow = document.createElement('div');
+          subRow.style.cssText = 'font-size:11px;color:#bbb;display:flex;align-items:center;gap:4px;';
+          subRow.innerHTML = '<span style="color:#d0b8e8">·</span> ' + sub.text;
+          subtaskWrap.appendChild(subRow);
+        });
+      }
+
       var del = document.createElement('button');
       del.className = 'task-delete';
       del.textContent = '×';
@@ -2237,6 +2270,11 @@ function renderLaterTasks() {
       item.appendChild(promoteBtn);
       item.appendChild(text);
       item.appendChild(del);
+      if (subtaskWrap) {
+        item.style.flexWrap = 'wrap';
+        item.appendChild(subtaskWrap);
+        subtaskWrap.style.width = '100%';
+      }
       body.appendChild(item);
     });
 
@@ -2762,7 +2800,7 @@ function renderTasks() {
       migrateBtn.addEventListener('click', function() {
         var moved = tasks.splice(idx, 1)[0];
         if (laterGroups.length === 0) laterGroups.push({ name: 'general', tasks: [], open: true });
-        laterGroups[0].tasks.push({ text: moved.text, done: false });
+        laterGroups[0].tasks.push({ text: moved.text, done: false, subtasks: moved.subtasks || [] });
         saveTasks();
         saveLaterTasks();
         renderTasks();
@@ -3326,23 +3364,69 @@ document.getElementById('bgOpacity').addEventListener('input', function() {
   try { localStorage.setItem('focusTimerBgOpacity', val); } catch(e) {}
 });
 
-// ---- RITUAL ----
-var DEFAULT_RITUAL = [
-  'phone face down or away',
-  'water nearby',
-  'headphones on',
-  'tabs/apps closed',
-  'set your intention'
+// ---- RITUALS ----
+var DEFAULT_MORNING_RITUAL = [
+  '\u2600\ufe0f open calendar & write today\u2019s MITs',
+  '\ud83c\udfaf write goal & reward for the day',
+  '\ud83d\udcac post MITs on Discord',
+  '\ud83d\udeb0 set up workspace & desk'
 ];
 
+var DEFAULT_RITUAL = [
+  '\ud83d\udcf5 phone in another room',
+  '\ud83d\udca7 fill water bottle',
+  '\ud83e\uddf9 close all tabs & distractions',
+  '\ud83d\udd6f\ufe0f light candle or use essential oil',
+  '\ud83c\udfa7 turn on music or noise',
+  '\ud83e\udeb7 take 5 deep breaths & drop into body',
+  '\ud83c\udfc6 what will I celebrate when done?'
+];
+
+var morningItems = [];
+var morningChecked = [];
+var morningEditing = false;
+var ritualItems = [];
+var ritualChecked = [];
+var ritualEditing = false;
+
 function loadRitual() {
+  var todayStr = new Date().toLocaleDateString();
+
   try {
-    var saved = localStorage.getItem('focusTimerRitual');
-    if (saved) ritualItems = JSON.parse(saved);
+    var sm = localStorage.getItem('focusTimerMorningRitual');
+    if (sm) morningItems = JSON.parse(sm);
+    else morningItems = DEFAULT_MORNING_RITUAL.slice();
+
+    // Auto-reset checks if it's a new day
+    var lastDay = localStorage.getItem('focusTimerMorningDate');
+    if (lastDay !== todayStr) {
+      morningChecked = new Array(morningItems.length).fill(false);
+      localStorage.setItem('focusTimerMorningDate', todayStr);
+      localStorage.setItem('focusTimerMorningChecked', JSON.stringify(morningChecked));
+    } else {
+      var sc = localStorage.getItem('focusTimerMorningChecked');
+      if (sc) morningChecked = JSON.parse(sc);
+      else morningChecked = new Array(morningItems.length).fill(false);
+    }
+  } catch(e) { morningItems = DEFAULT_MORNING_RITUAL.slice(); morningChecked = new Array(morningItems.length).fill(false); }
+
+  try {
+    var sr = localStorage.getItem('focusTimerRitual');
+    if (sr) ritualItems = JSON.parse(sr);
     else ritualItems = DEFAULT_RITUAL.slice();
   } catch(e) { ritualItems = DEFAULT_RITUAL.slice(); }
   ritualChecked = new Array(ritualItems.length).fill(false);
+
+  renderMorningRitual();
   renderRitual();
+}
+
+function saveMorning() {
+  try {
+    localStorage.setItem('focusTimerMorningRitual', JSON.stringify(morningItems));
+    localStorage.setItem('focusTimerMorningChecked', JSON.stringify(morningChecked));
+    localStorage.setItem('focusTimerMorningDate', new Date().toLocaleDateString());
+  } catch(e) {}
 }
 
 function saveRitual() {
@@ -3354,42 +3438,59 @@ function resetRitual() {
   renderRitual();
 }
 
-function renderRitual() {
-  var list = document.getElementById('ritualList');
-  var progress = document.getElementById('ritualProgress');
-  var section = document.getElementById('ritualSection');
+function makeRitualList(items, checked, isEditing, saveChecked, saveItems, progressId, listId, sectionId) {
+  var list = document.getElementById(listId);
+  var progress = document.getElementById(progressId);
+  var section = document.getElementById(sectionId);
   list.innerHTML = '';
-
-  if (ritualEditing) section.classList.add('editing');
+  if (isEditing) section.classList.add('editing');
   else section.classList.remove('editing');
 
-  var doneCount = 0;
-  ritualItems.forEach(function(item, i) {
+  items.forEach(function(item, i) {
     var row = document.createElement('div');
     row.className = 'ritual-item';
 
     var cb = document.createElement('input');
     cb.type = 'checkbox';
-    cb.checked = ritualChecked[i] || false;
-    if (cb.checked) doneCount++;
+    cb.checked = checked[i] || false;
     cb.addEventListener('change', function() {
-      ritualChecked[i] = this.checked;
+      checked[i] = this.checked;
       textEl.className = 'ritual-item-text' + (this.checked ? ' checked' : '');
-      updateRitualProgress();
+      saveChecked();
+      updateProgress(items, checked, progressId);
     });
 
     var textEl = document.createElement('span');
-    textEl.className = 'ritual-item-text' + (ritualChecked[i] ? ' checked' : '');
+    textEl.className = 'ritual-item-text' + (checked[i] ? ' checked' : '');
     textEl.textContent = item;
+    textEl.title = 'double-click to edit';
+    textEl.addEventListener('dblclick', function() {
+      var input = document.createElement('input');
+      input.type = 'text';
+      input.value = items[i];
+      input.style.cssText = 'flex:1;font-size:13px;border:none;border-bottom:1px solid #c9a83a;outline:none;background:transparent;font-family:inherit;color:#555;padding:1px 0;';
+      row.replaceChild(input, textEl);
+      input.focus(); input.select();
+      function finish() {
+        var val = input.value.trim();
+        if (val) { items[i] = val; textEl.textContent = val; saveItems(); }
+        if (row.contains(input)) row.replaceChild(textEl, input);
+      }
+      input.addEventListener('blur', finish);
+      input.addEventListener('keydown', function(ev) {
+        if (ev.key === 'Enter') finish();
+        if (ev.key === 'Escape') { if (row.contains(input)) row.replaceChild(textEl, input); }
+      });
+    });
 
     var del = document.createElement('button');
     del.className = 'ritual-del';
-    del.textContent = '×';
+    del.textContent = '\xd7';
     del.addEventListener('click', function() {
-      ritualItems.splice(i, 1);
-      ritualChecked.splice(i, 1);
-      saveRitual();
-      renderRitual();
+      items.splice(i, 1);
+      checked.splice(i, 1);
+      saveItems(); saveChecked();
+      makeRitualList(items, checked, isEditing, saveChecked, saveItems, progressId, listId, sectionId);
     });
 
     row.appendChild(cb);
@@ -3398,30 +3499,63 @@ function renderRitual() {
     list.appendChild(row);
   });
 
-  updateRitualProgress();
+  updateProgress(items, checked, progressId);
 }
 
-function updateRitualProgress() {
-  var done = ritualChecked.filter(Boolean).length;
-  var total = ritualItems.length;
-  var progress = document.getElementById('ritualProgress');
-  if (total === 0) { progress.textContent = ''; return; }
+function updateProgress(items, checked, progressId) {
+  var done = checked.filter(Boolean).length;
+  var total = items.length;
+  var el = document.getElementById(progressId);
+  if (!el || total === 0) return;
   if (done === total) {
-    progress.textContent = 'all set ✦ ready to seal';
-    progress.className = 'ritual-progress complete';
+    el.textContent = 'all done \u2746';
+    el.className = 'ritual-progress complete';
   } else {
-    progress.textContent = done + ' / ' + total + ' complete';
-    progress.className = 'ritual-progress';
+    el.textContent = done + ' / ' + total;
+    el.className = 'ritual-progress';
   }
 }
 
+function renderMorningRitual() {
+  makeRitualList(morningItems, morningChecked, morningEditing, saveMorning, function() { saveMorning(); renderMorningRitual(); }, 'morningProgress', 'morningRitualList', 'morningRitualSection');
+}
+
+function renderRitual() {
+  makeRitualList(ritualItems, ritualChecked, ritualEditing, function(){}, function() { saveRitual(); renderRitual(); }, 'ritualProgress', 'ritualList', 'ritualSection');
+}
+
+// Morning edit/add/reset
+document.getElementById('editMorningBtn').addEventListener('click', function() {
+  morningEditing = !morningEditing;
+  this.textContent = morningEditing ? 'done' : 'edit';
+  document.getElementById('morningAddRow').style.display = morningEditing ? 'flex' : 'none';
+  renderMorningRitual();
+});
+document.getElementById('resetMorningBtn').addEventListener('click', function() {
+  morningChecked = new Array(morningItems.length).fill(false);
+  saveMorning();
+  renderMorningRitual();
+});
+document.getElementById('morningAddBtn').addEventListener('click', function() {
+  var val = document.getElementById('morningAddInput').value.trim();
+  if (!val) return;
+  morningItems.push(val);
+  morningChecked.push(false);
+  saveMorning();
+  document.getElementById('morningAddInput').value = '';
+  renderMorningRitual();
+});
+document.getElementById('morningAddInput').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') document.getElementById('morningAddBtn').click();
+});
+
+// Session edit/add
 document.getElementById('editRitualBtn').addEventListener('click', function() {
   ritualEditing = !ritualEditing;
   this.textContent = ritualEditing ? 'done' : 'edit';
   document.getElementById('ritualAddRow').style.display = ritualEditing ? 'flex' : 'none';
   renderRitual();
 });
-
 document.getElementById('ritualAddBtn').addEventListener('click', function() {
   var val = document.getElementById('ritualAddInput').value.trim();
   if (!val) return;
@@ -3431,10 +3565,30 @@ document.getElementById('ritualAddBtn').addEventListener('click', function() {
   document.getElementById('ritualAddInput').value = '';
   renderRitual();
 });
-
 document.getElementById('ritualAddInput').addEventListener('keydown', function(e) {
   if (e.key === 'Enter') document.getElementById('ritualAddBtn').click();
 });
+
+// Ritual collapse toggles
+(function() {
+  function initCollapse(headerId, bodyId, arrowId, storageKey) {
+    var header = document.getElementById(headerId);
+    var body = document.getElementById(bodyId);
+    var arrow = document.getElementById(arrowId);
+    var collapsed = false;
+    try { collapsed = localStorage.getItem(storageKey) === 'true'; } catch(e) {}
+    if (collapsed) { body.style.display = 'none'; arrow.textContent = '▸'; }
+    header.addEventListener('click', function(e) {
+      if (e.target.tagName === 'BUTTON' || e.target.tagName === 'INPUT') return;
+      collapsed = !collapsed;
+      body.style.display = collapsed ? 'none' : '';
+      arrow.textContent = collapsed ? '▸' : '▾';
+      try { localStorage.setItem(storageKey, collapsed); } catch(e) {}
+    });
+  }
+  initCollapse('morningRitualHeader', 'morningRitualBody', 'morningToggleArrow', 'focusRitualMorningOpen');
+  initCollapse('sessionRitualHeader', 'sessionRitualBody', 'sessionToggleArrow', 'focusRitualSessionOpen');
+})();
 
 loadTasks();
 loadTemplates();
