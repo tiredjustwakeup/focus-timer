@@ -1352,6 +1352,7 @@ initSealResize();
 
 function startBreakTimer(mins) {
   if (running) return;
+  stopTick();
   isBreak = true;
   TOTAL = mins * 60;
   remaining = TOTAL;
