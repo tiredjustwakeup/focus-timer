@@ -423,6 +423,12 @@ button:active { transform: scale(0.97); }
   cursor: pointer; padding: 0 1px; line-height: 1; flex-shrink: 0;
 }
 .subtask-action:hover { color: #999; }
+.subtask-collapse-btn {
+  font-size: 9px; color: #ccc; background: none; border: none;
+  cursor: pointer; padding: 0 2px; line-height: 1; flex-shrink: 0;
+  transition: color 0.15s;
+}
+.subtask-collapse-btn:hover { color: #2d9e4f; }
 .subtask-item.dragging { opacity: 0.4; }
 .subtask-item.drag-over-top { border-top: 2px solid #2d9e4f; }
 .subtask-item.drag-over-bottom { border-bottom: 2px solid #2d9e4f; }
@@ -781,7 +787,7 @@ button:active { transform: scale(0.97); }
       <div style="width:100%;display:flex;justify-content:center">
         <button class="toggle-btn" id="toggleSound">&#9658; noise &amp; sound</button>
       </div>
-      <div class="sound-panel" id="soundPanel">
+      <div class="sound-panel" id="soundPanel" style="display:none">
         <div class="sound-row">
           <span class="sound-row-label">bell vol</span>
           <input type="range" id="volumeSlider" min="0" max="1" step="0.05" value="0.12" style="accent-color:#2d9e4f" />
@@ -809,6 +815,11 @@ button:active { transform: scale(0.97); }
         <div class="sound-row">
           <span class="sound-row-label">🪷 breath</span>
           <input type="range" id="breathVolume" min="0" max="1" step="0.02" value="0.4" style="accent-color:#56cfe1" />
+        </div>
+        <div class="sound-row">
+          <span class="sound-row-label">🕰️ tick</span>
+          <input type="range" id="tickVolume" min="0" max="1" step="0.02" value="0.3" style="accent-color:#888" />
+          <button class="sound-toggle" id="tickBtn">off</button>
         </div>
       </div>
     </div>
@@ -879,7 +890,7 @@ button:active { transform: scale(0.97); }
       <div style="width:100%;display:flex;justify-content:center">
         <button class="toggle-btn" id="toggleTasks">&#9658; my tasks</button>
       </div>
-      <div class="tasks-box" id="tasksBox">
+      <div class="tasks-box" id="tasksBox" style="display:none">
         <div class="color-picker-label" style="align-self:flex-start">tasks</div>
         <div class="task-list" id="taskList"></div>
         <div class="task-empty" id="taskEmpty">no tasks yet. add one above.</div>
@@ -1366,6 +1377,7 @@ function startTimer() {
   document.getElementById('done').style.display = 'none';
   document.querySelector('.sticky-header').classList.add('running');
   playBell();
+  if (tickOn) startTick();
   timerInterval = setInterval(function() {
     var secsLeft = Math.round((sessionEndTime - Date.now()) / 1000);
     if (secsLeft < 0) secsLeft = 0;
@@ -1468,6 +1480,7 @@ function finishEarly() {
 function pauseTimer() {
   if (!running) return;
   clearInterval(timerInterval);
+  stopTick();
   running = false;
   document.querySelector('.sticky-header').classList.remove('running');
   document.getElementById('startBtn').style.display = '';
@@ -1478,6 +1491,7 @@ function resetTimer() {
   clearInterval(timerInterval);
   clearInterval(breathInterval);
   stopBreathSound();
+  stopTick();
   running = false;
   breathActive = false;
   var wasBreak = isBreak;
@@ -2021,8 +2035,40 @@ function stopOceanSound() {
   oceanGainNode = null;
 }
 
+var tickOn = false;
+var tickInterval = null;
 
-var tasks = [];
+function playTick() {
+  try {
+    var ctx = getAudioCtx();
+    var vol = noiseSliderToGain(document.getElementById('tickVolume').value);
+    var buf = ctx.createBuffer(1, ctx.sampleRate * 0.02, ctx.sampleRate);
+    var data = buf.getChannelData(0);
+    for (var i = 0; i < data.length; i++) {
+      data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / data.length, 8);
+    }
+    var src = ctx.createBufferSource();
+    src.buffer = buf;
+    var gain = ctx.createGain();
+    gain.gain.value = vol * 3;
+    src.connect(gain);
+    gain.connect(ctx.destination);
+    src.start();
+  } catch(e) {}
+}
+
+function startTick() {
+  if (tickInterval) clearInterval(tickInterval);
+  tickInterval = setInterval(playTick, 1000);
+  playTick();
+}
+
+function stopTick() {
+  clearInterval(tickInterval);
+  tickInterval = null;
+}
+
+
 
 function loadTasks() {
   try {
@@ -2246,17 +2292,32 @@ function renderLaterTasks() {
         });
       });
 
-      // show subtasks if any
+      // show subtasks if any, with collapse toggle
       var subtaskWrap = null;
       if (ltask.subtasks && ltask.subtasks.length > 0) {
+        var laterSubCollapsed = ltask.subtasksCollapsed || false;
+
+        var laterSubToggle = document.createElement('button');
+        laterSubToggle.className = 'subtask-collapse-btn';
+        laterSubToggle.textContent = laterSubCollapsed ? '▶' : '▼';
+        laterSubToggle.title = laterSubCollapsed ? 'show subtasks' : 'hide subtasks';
+
         subtaskWrap = document.createElement('div');
-        subtaskWrap.style.cssText = 'padding-left:20px;display:flex;flex-direction:column;gap:2px;margin-top:2px;';
+        subtaskWrap.style.cssText = 'padding-left:20px;display:' + (laterSubCollapsed ? 'none' : 'flex') + ';flex-direction:column;gap:2px;margin-top:2px;width:100%;';
         ltask.subtasks.forEach(function(sub) {
           var subRow = document.createElement('div');
           subRow.style.cssText = 'font-size:11px;color:#bbb;display:flex;align-items:center;gap:4px;';
           subRow.innerHTML = '<span style="color:#d0b8e8">·</span> ' + sub.text;
           subtaskWrap.appendChild(subRow);
         });
+
+        laterSubToggle.addEventListener('click', function() {
+          laterGroups[gi].tasks[ti].subtasksCollapsed = !laterGroups[gi].tasks[ti].subtasksCollapsed;
+          saveLaterTasks();
+          renderLaterTasks();
+        });
+
+        item.appendChild(laterSubToggle);
       }
 
       var del = document.createElement('button');
@@ -2273,7 +2334,6 @@ function renderLaterTasks() {
       if (subtaskWrap) {
         item.style.flexWrap = 'wrap';
         item.appendChild(subtaskWrap);
-        subtaskWrap.style.width = '100%';
       }
       body.appendChild(item);
     });
@@ -2795,8 +2855,8 @@ function renderTasks() {
       var migrateBtn = document.createElement('button');
       migrateBtn.className = 'task-migrate-btn';
       migrateBtn.draggable = false;
-      migrateBtn.textContent = '>';
-      migrateBtn.title = 'send to later';
+      migrateBtn.innerHTML = '&#8594;';
+      migrateBtn.title = 'send to later list';
       migrateBtn.addEventListener('click', function() {
         var moved = tasks.splice(idx, 1)[0];
         if (laterGroups.length === 0) laterGroups.push({ name: 'general', tasks: [], open: true });
@@ -2818,6 +2878,23 @@ function renderTasks() {
       subToggle.draggable = false;
       subToggle.innerHTML = '&#43;';
       subToggle.title = 'add subtask';
+
+      // Build collapse btn early so it can go in the row at the right position
+      if (!task.subtasks) task.subtasks = [];
+      var subCollapsed = task.subtasksCollapsed || false;
+      var subCollapseBtn = null;
+      if (task.subtasks.length > 0) {
+        subCollapseBtn = document.createElement('button');
+        subCollapseBtn.className = 'subtask-collapse-btn';
+        subCollapseBtn.textContent = subCollapsed ? '▶' : '▼';
+        subCollapseBtn.title = subCollapsed ? 'show subtasks' : 'hide subtasks';
+        subCollapseBtn.draggable = false;
+        subCollapseBtn.addEventListener('click', function() {
+          tasks[idx].subtasksCollapsed = !tasks[idx].subtasksCollapsed;
+          saveTasks();
+          renderTasks();
+        });
+      }
       subToggle.addEventListener('click', function() {
         var addRow = document.createElement('div');
         addRow.className = 'subtask-add-row';
@@ -2855,6 +2932,7 @@ function renderTasks() {
       row.appendChild(star);
       row.appendChild(main);
       row.appendChild(subToggle);
+      if (subCollapseBtn) row.appendChild(subCollapseBtn);
       row.appendChild(timerBtn);
       row.appendChild(migrateBtn);
       row.appendChild(del);
@@ -2865,6 +2943,7 @@ function renderTasks() {
       if (task.subtasks.length > 0) {
         var subList = document.createElement('div');
         subList.className = 'subtask-list';
+        if (subCollapsed) subList.style.display = 'none';
         for (var si = 0; si < task.subtasks.length; si++) {
           (function(sub, sidx) {
             var subItem = document.createElement('div');
@@ -3134,103 +3213,18 @@ function applyTheme(theme) {
 }
 
 applyTheme(currentTheme);
-// Section reordering
+// Section reordering - restore saved order only, drag disabled for now
 (function() {
   var container = document.getElementById('sectionsContainer');
-  var sectionDragSrc = null;
-  var dragFromHandle = false;
-
-  function saveOrder() {
-    var blocks = container.querySelectorAll('.section-block');
-    var order = [];
-    for (var i = 0; i < blocks.length; i++) order.push(blocks[i].getAttribute('data-id'));
-    try { localStorage.setItem('focusTimerSectionOrder', JSON.stringify(order)); } catch(e) {}
-  }
-
-  function applyOrder(order) {
-    order.forEach(function(id) {
-      var el = container.querySelector('[data-id="' + id + '"]');
-      if (el) container.appendChild(el);
-    });
-  }
-
   try {
     var saved = localStorage.getItem('focusTimerSectionOrder');
-    if (saved) applyOrder(JSON.parse(saved));
+    if (saved) {
+      JSON.parse(saved).forEach(function(id) {
+        var el = container.querySelector('[data-id="' + id + '"]');
+        if (el) container.appendChild(el);
+      });
+    }
   } catch(e) {}
-
-  var blocks = container.querySelectorAll('.section-block');
-  for (var i = 0; i < blocks.length; i++) {
-    (function(block) {
-      // Use the toggle-btn as the drag handle
-      var handle = block.querySelector('.toggle-btn');
-      if (!handle) handle = block.querySelector('.section-handle');
-
-      handle.addEventListener('mousedown', function(e) {
-        dragFromHandle = true;
-        block.setAttribute('draggable', 'true');
-      });
-      handle.addEventListener('touchstart', function(e) {
-        dragFromHandle = true;
-        block.setAttribute('draggable', 'true');
-      }, { passive: true });
-
-      block.setAttribute('draggable', 'false');
-
-      block.addEventListener('dragstart', function(e) {
-        if (!dragFromHandle) { e.preventDefault(); return; }
-        sectionDragSrc = block;
-        globalDragSource = 'section';
-        block.classList.add('dragging');
-        e.dataTransfer.effectAllowed = 'move';
-        e.dataTransfer.setData('text/plain', 'section');
-        e.stopPropagation();
-      });
-
-      block.addEventListener('dragend', function(e) {
-        dragFromHandle = false;
-        globalDragSource = null;
-        block.setAttribute('draggable', 'false');
-        block.classList.remove('dragging');
-        var all = container.querySelectorAll('.section-block');
-        for (var z = 0; z < all.length; z++) all[z].classList.remove('drag-over-top', 'drag-over-bottom');
-        e.stopPropagation();
-      });
-
-      block.addEventListener('dragover', function(e) {
-        if (globalDragSource !== 'section' || sectionDragSrc === block) return;
-        e.preventDefault();
-        e.stopPropagation();
-        var rect = block.getBoundingClientRect();
-        block.classList.remove('drag-over-top', 'drag-over-bottom');
-        if (e.clientY < rect.top + rect.height / 2) block.classList.add('drag-over-top');
-        else block.classList.add('drag-over-bottom');
-      });
-
-      block.addEventListener('dragleave', function(e) {
-        block.classList.remove('drag-over-top', 'drag-over-bottom');
-        e.stopPropagation();
-      });
-
-      block.addEventListener('drop', function(e) {
-        if (globalDragSource !== 'section') return;
-        e.preventDefault();
-        e.stopPropagation();
-        block.classList.remove('drag-over-top', 'drag-over-bottom');
-        if (!sectionDragSrc || sectionDragSrc === block) return;
-        var rect = block.getBoundingClientRect();
-        var insertAfter = e.clientY >= rect.top + rect.height / 2;
-        if (insertAfter) container.insertBefore(sectionDragSrc, block.nextSibling);
-        else container.insertBefore(sectionDragSrc, block);
-        saveOrder();
-        sectionDragSrc = null;
-        dragFromHandle = false;
-        globalDragSource = null;
-      });
-    })(blocks[i]);
-  }
-
-  document.addEventListener('mouseup', function() { dragFromHandle = false; });
 })();
 
 // Background picker
@@ -3366,10 +3360,10 @@ document.getElementById('bgOpacity').addEventListener('input', function() {
 
 // ---- RITUALS ----
 var DEFAULT_MORNING_RITUAL = [
-  '\u2600\ufe0f open calendar & write today\u2019s MITs',
-  '\ud83c\udfaf write goal & reward for the day',
-  '\ud83d\udcac post MITs on Discord',
-  '\ud83d\udeb0 set up workspace & desk'
+  '\u2600\ufe0f check calendar',
+  '\ud83d\udeb0 set up workspace & desk',
+  '\ud83d\udcdd write to-do list & MITs',
+  '\ud83d\udcac post MITs on Discord'
 ];
 
 var DEFAULT_RITUAL = [
@@ -3378,8 +3372,8 @@ var DEFAULT_RITUAL = [
   '\ud83e\uddf9 close all tabs & distractions',
   '\ud83d\udd6f\ufe0f light candle or use essential oil',
   '\ud83c\udfa7 turn on music or noise',
-  '\ud83e\udeb7 take 5 deep breaths & drop into body',
-  '\ud83c\udfc6 what will I celebrate when done?'
+  '\ud83d\udeab block internet',
+  '\ud83e\udeb7 take 5 deep breaths & drop into body'
 ];
 
 var morningItems = [];
@@ -3440,15 +3434,68 @@ function resetRitual() {
 
 function makeRitualList(items, checked, isEditing, saveChecked, saveItems, progressId, listId, sectionId) {
   var list = document.getElementById(listId);
-  var progress = document.getElementById(progressId);
   var section = document.getElementById(sectionId);
   list.innerHTML = '';
   if (isEditing) section.classList.add('editing');
   else section.classList.remove('editing');
 
+  var ritualDragSrc = null;
+
   items.forEach(function(item, i) {
     var row = document.createElement('div');
     row.className = 'ritual-item';
+    row.draggable = true;
+
+    // drag handle
+    var handle = document.createElement('span');
+    handle.textContent = '\u22ee\u22ee';
+    handle.style.cssText = 'font-size:10px;color:#ddd;cursor:grab;letter-spacing:-2px;padding-right:4px;flex-shrink:0;';
+    handle.title = 'drag to reorder';
+
+    var ritualDragFromHandle = false;
+    handle.addEventListener('mousedown', function() { ritualDragFromHandle = true; });
+    document.addEventListener('mouseup', function() { ritualDragFromHandle = false; }, { once: false });
+
+    row.addEventListener('dragstart', function(e) {
+      if (!ritualDragFromHandle) { e.preventDefault(); return; }
+      ritualDragSrc = i;
+      row.style.opacity = '0.4';
+      e.dataTransfer.effectAllowed = 'move';
+      e.stopPropagation();
+    });
+
+    row.addEventListener('dragend', function() {
+      row.style.opacity = '';
+      list.querySelectorAll('.ritual-item').forEach(function(r) {
+        r.style.borderTop = '';
+        r.style.borderBottom = '';
+      });
+    });
+    row.addEventListener('dragover', function(e) {
+      if (ritualDragSrc === null || ritualDragSrc === i) return;
+      e.preventDefault();
+      list.querySelectorAll('.ritual-item').forEach(function(r) { r.style.borderTop = ''; r.style.borderBottom = ''; });
+      if (e.clientY < row.getBoundingClientRect().top + row.offsetHeight / 2) row.style.borderTop = '2px solid #c9a83a';
+      else row.style.borderBottom = '2px solid #c9a83a';
+    });
+    row.addEventListener('dragleave', function() {
+      row.style.borderTop = ''; row.style.borderBottom = '';
+    });
+    row.addEventListener('drop', function(e) {
+      e.preventDefault();
+      row.style.borderTop = ''; row.style.borderBottom = '';
+      if (ritualDragSrc === null || ritualDragSrc === i) return;
+      var insertAfter = e.clientY >= row.getBoundingClientRect().top + row.offsetHeight / 2;
+      var movedItem = items.splice(ritualDragSrc, 1)[0];
+      var movedCheck = checked.splice(ritualDragSrc, 1)[0];
+      var dest = i < ritualDragSrc ? i : i - 1;
+      if (insertAfter) dest++;
+      items.splice(dest, 0, movedItem);
+      checked.splice(dest, 0, movedCheck);
+      ritualDragSrc = null;
+      saveItems(); saveChecked();
+      makeRitualList(items, checked, isEditing, saveChecked, saveItems, progressId, listId, sectionId);
+    });
 
     var cb = document.createElement('input');
     cb.type = 'checkbox';
@@ -3493,6 +3540,7 @@ function makeRitualList(items, checked, isEditing, saveChecked, saveItems, progr
       makeRitualList(items, checked, isEditing, saveChecked, saveItems, progressId, listId, sectionId);
     });
 
+    row.appendChild(handle);
     row.appendChild(cb);
     row.appendChild(textEl);
     row.appendChild(del);
@@ -3668,10 +3716,10 @@ document.getElementById('toggleScratch').addEventListener('click', function() {
     this.innerHTML = '&#9658; scratchpad';
     return;
   }
-  var open = box.style.display === 'flex';
-  box.style.display = open ? 'none' : 'flex';
-  this.innerHTML = (open ? '&#9658;' : '&#9660;') + ' scratchpad';
-  if (!open) document.getElementById('scratchPad').focus();
+  var isHidden = box.style.display === 'none' || box.style.display === '';
+  box.style.display = isHidden ? 'flex' : 'none';
+  this.innerHTML = (isHidden ? '&#9660;' : '&#9658;') + ' scratchpad';
+  if (isHidden) document.getElementById('scratchPad').focus();
 });
 
 // Drag the floating scratchpad
@@ -3826,19 +3874,19 @@ document.getElementById('toggleSound').addEventListener('click', function() {
   var panel = document.getElementById('soundPanel');
   var open = panel.style.display === 'flex';
   panel.style.display = open ? 'none' : 'flex';
-  this.innerHTML = (open ? '&#9658;' : '&#9660;') + ' noise & sound';
+  this.innerHTML = (open ? '&#9658;' : '&#9660;') + ' noise &amp; sound';
 });
 
 document.getElementById('toggleCalls').addEventListener('click', function() {
   var box = document.getElementById('trackersBox');
-  var open = box.style.display === 'flex' || box.style.display === 'block';
+  var open = box.style.display === 'flex';
   box.style.display = open ? 'none' : 'flex';
   this.innerHTML = (open ? '&#9658;' : '&#9660;') + ' trackers';
 });
 
 document.getElementById('toggleSessions').addEventListener('click', function() {
   var box = document.getElementById('sessionsBox');
-  var open = box.style.display === 'flex' || box.style.display === 'block';
+  var open = box.style.display === 'flex';
   box.style.display = open ? 'none' : 'flex';
   this.innerHTML = (open ? '&#9658;' : '&#9660;') + ' sessions completed';
 });
@@ -3964,6 +4012,23 @@ document.getElementById('oceanBtn').addEventListener('click', function() {
 
 document.getElementById('oceanVolume').addEventListener('input', function() {
   if (oceanGainNode) oceanGainNode.gain.value = noiseSliderToGain(this.value);
+});
+
+document.getElementById('tickBtn').addEventListener('click', function() {
+  tickOn = !tickOn;
+  if (tickOn) {
+    this.textContent = 'on';
+    this.style.background = '#555';
+    this.style.color = '#fff';
+    this.style.borderColor = '#555';
+    if (running) startTick();
+  } else {
+    stopTick();
+    this.textContent = 'off';
+    this.style.background = '';
+    this.style.color = '';
+    this.style.borderColor = '';
+  }
 });
 
 var timeBtns = document.querySelectorAll('.time-btn[data-mins]');
