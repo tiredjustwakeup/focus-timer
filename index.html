@@ -637,6 +637,14 @@ button:active { transform: scale(0.97); }
   <div class="sticky-bar"><div class="sticky-bar-fill" id="stickyFill"></div></div>
 </div>
 
+<div id="breakSuggestion" style="display:none;position:fixed;top:0;left:0;right:0;z-index:999;flex-direction:row;align-items:center;justify-content:center;gap:12px;padding:10px 16px;background:#e8f5ee;border-bottom:2px solid #b2dcc2;">
+  <div id="breakSuggestionText" style="font-size:13px;color:#1a6b38;text-align:center;"></div>
+  <div style="display:flex;gap:8px;flex-shrink:0">
+    <button id="startBreakSuggBtn" style="background:#2d9e4f;color:#fff;border:none;border-radius:8px;padding:5px 14px;font-size:12px;cursor:pointer;font-family:inherit;">start break</button>
+    <button id="skipBreakBtn" style="background:transparent;color:#999;border:1px solid #ddd;border-radius:8px;padding:5px 14px;font-size:12px;cursor:pointer;font-family:inherit;">skip</button>
+  </div>
+</div>
+
 <div class="active-seal-display" id="activeSealDisplay" style="display:none">
   <div class="active-seal-drag-handle" title="drag to move">&#8942;&#8942;</div>
   <canvas id="activeSealCanvas" width="160" height="160"></canvas>
@@ -733,6 +741,8 @@ button:active { transform: scale(0.97); }
     <div class="seal-trigger-row" id="sealTriggerRow" style="display:flex">
       <button class="seal-trigger-btn" id="sealTriggerBtn">&#128274; seal this session</button>
     </div>
+
+    <div class="done-msg" id="done"></div>
   </div>
 
   <div class="seal-modal-overlay" id="sealModalOverlay" style="display:none">
@@ -1009,7 +1019,6 @@ button:active { transform: scale(0.97); }
     <button class="new-day-btn" id="newDayBtn">start a new day (resets trackers &amp; sessions)</button>
   </div>
 
-  <div class="done-msg" id="done"></div>
 </div>
 
 <script>
@@ -1377,7 +1386,7 @@ function startTimer() {
   document.getElementById('done').style.display = 'none';
   document.querySelector('.sticky-header').classList.add('running');
   playBell();
-  if (tickOn) startTick();
+  if (tickOn && !isBreak) startTick();
   timerInterval = setInterval(function() {
     var secsLeft = Math.round((sessionEndTime - Date.now()) / 1000);
     if (secsLeft < 0) secsLeft = 0;
@@ -1387,6 +1396,7 @@ function startTimer() {
     updateMantra();
     if (remaining <= 0) {
       clearInterval(timerInterval);
+      stopTick();
       running = false;
       document.querySelector('.sticky-header').classList.remove('running');
       document.getElementById('pauseBtn').style.display = 'none';
@@ -1406,6 +1416,7 @@ function startTimer() {
         d.textContent = (distractions === 0 && urges === 0)
           ? "clean run. session logged automatically."
           : "session done & logged. " + distractions + " distractions, " + urges + " urges caught.";
+        showBreakSuggestion();
       }
       remaining = TOTAL;
       setDisplay(remaining);
@@ -1423,6 +1434,7 @@ document.addEventListener('visibilitychange', function() {
     setProgress((TOTAL - remaining) / TOTAL * 100);
     if (remaining <= 0) {
       clearInterval(timerInterval);
+      stopTick();
       running = false;
       document.querySelector('.sticky-header').classList.remove('running');
       document.getElementById('pauseBtn').style.display = 'none';
@@ -1442,6 +1454,7 @@ document.addEventListener('visibilitychange', function() {
         d.textContent = (distractions === 0 && urges === 0)
           ? "clean run. session logged automatically."
           : "session done & logged. " + distractions + " distractions, " + urges + " urges caught.";
+        showBreakSuggestion();
       }
       remaining = TOTAL;
       setDisplay(remaining);
@@ -1467,6 +1480,7 @@ function finishEarly() {
     var d = document.getElementById('done');
     d.style.display = 'block';
     d.textContent = "session finished early & logged. " + distractions + " distractions, " + urges + " urges caught.";
+    showBreakSuggestion();
   }
 
   isBreak = false;
@@ -1681,6 +1695,20 @@ function saveStats() {
 function refreshSessionMsg() {
   var sMsgs = ["first one down.", "two. building momentum.", "three. on a roll.", "four. serious focus.", "five. full day's work.", "six. you're a machine."];
   document.getElementById('sessionsMsg').textContent = sessions === 0 ? "finish a timer to log one" : (sessions <= sMsgs.length ? sMsgs[sessions - 1] : sessions + " sessions. respect.");
+}
+
+function showBreakSuggestion() {
+  var mins = TOTAL / 60;
+  var breakMins = mins >= 50 ? 10 : mins >= 25 ? 5 : Math.max(2, Math.round(mins * 0.2));
+  var suggestion = document.getElementById('breakSuggestion');
+  var text = document.getElementById('breakSuggestionText');
+  text.textContent = 'nice work. ready for a ' + breakMins + ' min break?';
+  suggestion.style.display = 'flex';
+  suggestion._breakMins = breakMins;
+}
+
+function hideBreakSuggestion() {
+  document.getElementById('breakSuggestion').style.display = 'none';
 }
 
 function addSession() {
@@ -3819,7 +3847,18 @@ document.getElementById('stickyTask').addEventListener('blur', function() {
   }
 });
 
-document.getElementById('startBtn').addEventListener('click', startTimer);
+document.getElementById('startBtn').addEventListener('click', function() {
+  hideBreakSuggestion();
+  startTimer();
+});
+
+document.getElementById('startBreakSuggBtn').addEventListener('click', function() {
+  var mins = document.getElementById('breakSuggestion')._breakMins || 5;
+  hideBreakSuggestion();
+  startBreakTimer(mins);
+});
+
+document.getElementById('skipBreakBtn').addEventListener('click', hideBreakSuggestion);
 document.getElementById('pauseBtn').addEventListener('click', pauseTimer);
 document.getElementById('resetBtn').addEventListener('click', resetTimer);
 document.getElementById('finishBtn').addEventListener('click', finishEarly);
