@@ -312,6 +312,24 @@ button:active { transform: scale(0.97); }
 }
 #scratchPad:focus { border-color: #c9a83a; }
 .scratch-footer { display: flex; align-items: center; justify-content: space-between; }
+.task-float {
+  position: fixed; top: 100px; right: 16px; z-index: 200;
+  width: 300px; min-width: 240px; max-width: 480px;
+  background: #fff; border: 1px solid #e8e8e8; border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.12);
+  display: flex; flex-direction: column; overflow: hidden;
+  user-select: none; resize: both; min-height: 200px;
+}
+.task-float-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 12px; background: #f9f9f8; border-bottom: 1px solid #e8e8e8;
+  cursor: grab; flex-shrink: 0;
+}
+.task-float-header:active { cursor: grabbing; }
+.task-float-body {
+  flex: 1; overflow-y: auto; padding: 8px 12px;
+  display: flex; flex-direction: column; gap: 4px;
+}
 .scratch-float {
   position: fixed; top: 140px; right: 16px; z-index: 200;
   width: 280px; background: #fdfbf6; border: 2px solid #e0d5b8;
@@ -668,6 +686,25 @@ button:active { transform: scale(0.97); }
     <button class="task-clear-btn" id="scratchClearFloatBtn">clear all</button>
   </div>
 </div>
+
+<div class="task-float" id="taskFloat" style="display:none">
+  <div class="task-float-header" id="taskFloatHandle">
+    <span style="font-size:11px;color:#666;font-weight:600;text-transform:uppercase;letter-spacing:0.06em">tasks</span>
+    <div style="display:flex;gap:6px;align-items:center">
+      <span class="task-hint" id="taskFloatCount"></span>
+      <button class="task-clear-btn" id="taskDockBtn" title="dock back into page">&#10698; dock</button>
+    </div>
+  </div>
+  <div class="task-float-body">
+    <div id="taskListFloat"></div>
+    <div class="task-empty" id="taskEmptyFloat" style="font-size:12px;padding:8px 0;">no tasks yet.</div>
+    <div style="display:flex;gap:6px;padding:6px 0 2px;border-top:1px solid #f0f0f0;margin-top:4px">
+      <input id="quickAddFloat" type="text" placeholder="add a task..." maxlength="100"
+        style="flex:1;font-size:12px;padding:5px 8px;border:1px solid #e8e8e8;border-radius:6px;outline:none;font-family:inherit;" />
+      <button class="task-add-btn" id="quickAddFloatBtn" style="font-size:12px;padding:5px 10px;">add</button>
+    </div>
+  </div>
+</div>
   <div class="active-seal-resize-handle" id="sealResizeHandle" title="drag to resize">
     <svg viewBox="0 0 16 16" fill="currentColor"><path d="M14 14H10V12.5H12.5V10H14V14ZM14 6.5H12.5V4H10V2.5H14V6.5ZM2 9.5H3.5V12H6V13.5H2V9.5ZM6 2.5H3.5V5H2V1H6V2.5Z"/></svg>
   </div>
@@ -904,7 +941,10 @@ button:active { transform: scale(0.97); }
         <button class="toggle-btn" id="toggleTasks">&#9658; my tasks</button>
       </div>
       <div class="tasks-box" id="tasksBox" style="display:none">
-        <div class="color-picker-label" style="align-self:flex-start">tasks</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;width:100%">
+          <div class="color-picker-label">tasks</div>
+          <button class="task-clear-btn" id="tasksPopBtn" title="pop out task list">&#10697; pop out</button>
+        </div>
         <div class="task-list" id="taskList"></div>
         <div class="task-empty" id="taskEmpty">no tasks yet. add one above.</div>
         <div class="task-input-row" id="quickAddRow">
@@ -1426,6 +1466,8 @@ function startTimer() {
           ? "clean run. session logged automatically."
           : "session done & logged. " + distractions + " distractions, " + urges + " urges caught.";
         showBreakSuggestion();
+    resetRitual();
+        resetRitual();
       }
       remaining = TOTAL;
       setDisplay(remaining);
@@ -1464,6 +1506,8 @@ document.addEventListener('visibilitychange', function() {
           ? "clean run. session logged automatically."
           : "session done & logged. " + distractions + " distractions, " + urges + " urges caught.";
         showBreakSuggestion();
+    resetRitual();
+        resetRitual();
       }
       remaining = TOTAL;
       setDisplay(remaining);
@@ -1490,6 +1534,7 @@ function finishEarly() {
     d.style.display = 'block';
     d.textContent = "session finished early & logged. " + distractions + " distractions, " + urges + " urges caught.";
     showBreakSuggestion();
+    resetRitual();
   }
 
   isBreak = false;
@@ -2647,10 +2692,85 @@ function fmtDue(due) {
   return 'due ' + h12 + ':' + m + ampm;
 }
 
+function renderTasksFloat() {
+  var floatList = document.getElementById('taskListFloat');
+  var floatEmpty = document.getElementById('taskEmptyFloat');
+  var floatCount = document.getElementById('taskFloatCount');
+  if (!floatList) return;
+  floatList.innerHTML = '';
+  var done = tasks.filter(function(t) { return t.done; }).length;
+  if (floatCount) floatCount.textContent = tasks.length > 0 ? done + '/' + tasks.length : '';
+  if (tasks.length === 0) { floatEmpty.style.display = 'block'; return; }
+  floatEmpty.style.display = 'none';
+  tasks.forEach(function(task, idx) {
+    var row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:flex-start;gap:6px;padding:4px 0;border-bottom:1px solid #f5f5f5;';
+
+    var cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.checked = task.done;
+    cb.style.cssText = 'accent-color:#2d9e4f;width:14px;height:14px;flex-shrink:0;margin-top:2px;';
+    cb.addEventListener('change', function() {
+      tasks[idx].done = this.checked;
+      saveTasks(); renderTasks(); renderTasksFloat();
+    });
+
+    var wrap = document.createElement('div');
+    wrap.style.cssText = 'flex:1;min-width:0;';
+
+    var text = document.createElement('span');
+    text.style.cssText = 'font-size:12px;color:' + (task.done ? '#ccc' : '#1a1a1a') + ';' + (task.done ? 'text-decoration:line-through;' : '') + 'display:block;cursor:pointer;';
+    text.textContent = task.text;
+    text.title = 'triple-click to set as active task';
+    var clickCount = 0, clickTimer = null;
+    text.addEventListener('click', function() {
+      clickCount++;
+      clearTimeout(clickTimer);
+      clickTimer = setTimeout(function() {
+        if (clickCount >= 3) {
+          document.getElementById('taskName').value = task.text;
+          document.getElementById('stickyTask').textContent = task.text;
+        }
+        clickCount = 0;
+      }, 280);
+    });
+    wrap.appendChild(text);
+
+    if (task.subtasks && task.subtasks.length > 0) {
+      var subs = document.createElement('div');
+      subs.style.cssText = 'padding-left:4px;margin-top:2px;';
+      task.subtasks.forEach(function(sub) {
+        var subRow = document.createElement('div');
+        subRow.style.cssText = 'display:flex;align-items:center;gap:4px;';
+        var subCb = document.createElement('input');
+        subCb.type = 'checkbox';
+        subCb.checked = sub.done;
+        subCb.style.cssText = 'accent-color:#5a9e7a;width:12px;height:12px;flex-shrink:0;';
+        subCb.addEventListener('change', function() {
+          sub.done = this.checked;
+          saveTasks(); renderTasks(); renderTasksFloat();
+        });
+        var subText = document.createElement('span');
+        subText.style.cssText = 'font-size:11px;color:' + (sub.done ? '#ccc' : '#888') + ';' + (sub.done ? 'text-decoration:line-through;' : '');
+        subText.textContent = sub.text;
+        subRow.appendChild(subCb);
+        subRow.appendChild(subText);
+        subs.appendChild(subRow);
+      });
+      wrap.appendChild(subs);
+    }
+
+    row.appendChild(cb);
+    row.appendChild(wrap);
+    floatList.appendChild(row);
+  });
+}
+
 function renderTasks() {
   var list = document.getElementById('taskList');
   var empty = document.getElementById('taskEmpty');
   list.innerHTML = '';
+  renderTasksFloat();
 
   if (tasks.length === 0) {
     empty.style.display = 'block';
@@ -3886,6 +4006,59 @@ document.getElementById('sessionBtn').addEventListener('click', addSession);
 document.getElementById('addTrackerBtn').addEventListener('click', addTracker);
 document.getElementById('setCustomBtn').addEventListener('click', setCustomTime);
 document.getElementById('newDayBtn').addEventListener('click', newDay);
+
+// Task float pop-out
+document.getElementById('tasksPopBtn').addEventListener('click', function() {
+  document.getElementById('taskFloat').style.display = 'flex';
+  renderTasksFloat();
+});
+
+document.getElementById('taskDockBtn').addEventListener('click', function() {
+  document.getElementById('taskFloat').style.display = 'none';
+});
+
+document.getElementById('quickAddFloatBtn').addEventListener('click', function() {
+  var input = document.getElementById('quickAddFloat');
+  var val = input.value.trim();
+  if (!val) return;
+  tasks.push({ text: val, done: false, starred: false, priority: 'none', symbol: 'task', due: '', subtasks: [] });
+  saveTasks(); renderTasks();
+  input.value = '';
+  input.focus();
+});
+
+document.getElementById('quickAddFloat').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') document.getElementById('quickAddFloatBtn').click();
+});
+
+// Drag the float window
+(function() {
+  var el = document.getElementById('taskFloat');
+  var handle = document.getElementById('taskFloatHandle');
+  var dragging = false, ox = 0, oy = 0;
+
+  try {
+    var sp = localStorage.getItem('focusTimerTaskFloatPos');
+    if (sp) { var pos = JSON.parse(sp); el.style.top = pos.top + 'px'; el.style.left = pos.left + 'px'; el.style.right = 'auto'; }
+  } catch(e) {}
+
+  handle.addEventListener('mousedown', function(e) {
+    dragging = true;
+    var rect = el.getBoundingClientRect();
+    ox = e.clientX - rect.left; oy = e.clientY - rect.top;
+    e.preventDefault();
+  });
+  document.addEventListener('mousemove', function(e) {
+    if (!dragging) return;
+    var nl = Math.max(0, Math.min(e.clientX - ox, window.innerWidth - el.offsetWidth));
+    var nt = Math.max(0, Math.min(e.clientY - oy, window.innerHeight - el.offsetHeight));
+    el.style.left = nl + 'px'; el.style.top = nt + 'px'; el.style.right = 'auto';
+  });
+  document.addEventListener('mouseup', function() {
+    if (!dragging) return; dragging = false;
+    try { var r = el.getBoundingClientRect(); localStorage.setItem('focusTimerTaskFloatPos', JSON.stringify({ top: r.top, left: r.left })); } catch(e) {}
+  });
+})();
 
 // Backup export
 document.getElementById('exportDataBtn').addEventListener('click', function() {
