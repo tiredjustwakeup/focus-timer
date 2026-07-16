@@ -2763,24 +2763,70 @@ function renderTasksFloat() {
   if (floatCount) floatCount.textContent = tasks.length > 0 ? done + '/' + tasks.length : '';
   if (tasks.length === 0) { floatEmpty.style.display = 'block'; return; }
   floatEmpty.style.display = 'none';
+
+  var floatDragSrc = null;
+
   tasks.forEach(function(task, idx) {
+    var item = document.createElement('div');
+    item.style.cssText = 'display:flex;flex-direction:column;border-bottom:1px solid #f5f5f5;';
+    item.draggable = true;
+
     var row = document.createElement('div');
-    row.style.cssText = 'display:flex;align-items:flex-start;gap:6px;padding:4px 0;border-bottom:1px solid #f5f5f5;';
+    row.style.cssText = 'display:flex;align-items:center;gap:5px;padding:4px 0;';
+
+    // drag handle
+    var handle = document.createElement('span');
+    handle.textContent = '\u22ee';
+    handle.style.cssText = 'font-size:11px;color:#ddd;cursor:grab;flex-shrink:0;user-select:none;';
+    handle.title = 'drag to reorder';
+
+    var floatDragFromHandle = false;
+    handle.addEventListener('mousedown', function() { floatDragFromHandle = true; });
+    item.addEventListener('dragstart', function(e) {
+      if (!floatDragFromHandle) { e.preventDefault(); return; }
+      floatDragSrc = idx;
+      item.style.opacity = '0.4';
+      e.dataTransfer.effectAllowed = 'move';
+      e.stopPropagation();
+    });
+    item.addEventListener('dragend', function() {
+      floatDragFromHandle = false;
+      item.style.opacity = '';
+      floatList.querySelectorAll('div').forEach(function(d) { d.style.borderTop = ''; d.style.borderBottom = ''; });
+    });
+    item.addEventListener('dragover', function(e) {
+      if (floatDragSrc === null || floatDragSrc === idx) return;
+      e.preventDefault(); e.stopPropagation();
+      floatList.querySelectorAll('[draggable]').forEach(function(d) { d.style.borderTop = ''; d.style.borderBottom = ''; });
+      if (e.clientY < item.getBoundingClientRect().top + item.offsetHeight / 2) item.style.borderTop = '2px solid #2d9e4f';
+      else item.style.borderBottom = '2px solid #2d9e4f';
+    });
+    item.addEventListener('dragleave', function() { item.style.borderTop = ''; item.style.borderBottom = ''; });
+    item.addEventListener('drop', function(e) {
+      e.preventDefault(); e.stopPropagation();
+      item.style.borderTop = ''; item.style.borderBottom = '';
+      if (floatDragSrc === null || floatDragSrc === idx) return;
+      var insertAfter = e.clientY >= item.getBoundingClientRect().top + item.offsetHeight / 2;
+      var moved = tasks.splice(floatDragSrc, 1)[0];
+      var dest = floatDragSrc < idx ? idx - 1 : idx;
+      if (insertAfter) dest++;
+      tasks.splice(Math.max(0, dest), 0, moved);
+      floatDragSrc = null;
+      saveTasks(); renderTasks();
+    });
 
     var cb = document.createElement('input');
     cb.type = 'checkbox';
     cb.checked = task.done;
-    cb.style.cssText = 'accent-color:#2d9e4f;width:14px;height:14px;flex-shrink:0;margin-top:2px;';
+    cb.style.cssText = 'accent-color:#2d9e4f;width:14px;height:14px;flex-shrink:0;';
+    cb.draggable = false;
     cb.addEventListener('change', function() {
       tasks[idx].done = this.checked;
-      saveTasks(); renderTasks(); renderTasksFloat();
+      saveTasks(); renderTasks();
     });
 
-    var wrap = document.createElement('div');
-    wrap.style.cssText = 'flex:1;min-width:0;';
-
     var text = document.createElement('span');
-    text.style.cssText = 'font-size:12px;color:' + (task.done ? '#ccc' : '#1a1a1a') + ';' + (task.done ? 'text-decoration:line-through;' : '') + 'display:block;cursor:pointer;';
+    text.style.cssText = 'flex:1;font-size:12px;color:' + (task.done ? '#ccc' : '#1a1a1a') + ';' + (task.done ? 'text-decoration:line-through;' : '') + 'cursor:pointer;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
     text.textContent = task.text;
     text.title = 'triple-click to set as active task';
     var clickCount = 0, clickTimer = null;
@@ -2795,35 +2841,55 @@ function renderTasksFloat() {
         clickCount = 0;
       }, 280);
     });
-    wrap.appendChild(text);
 
+    row.appendChild(handle);
+    row.appendChild(cb);
+    row.appendChild(text);
+
+    // subtask collapse if has subtasks
     if (task.subtasks && task.subtasks.length > 0) {
-      var subs = document.createElement('div');
-      subs.style.cssText = 'padding-left:4px;margin-top:2px;';
-      task.subtasks.forEach(function(sub) {
-        var subRow = document.createElement('div');
-        subRow.style.cssText = 'display:flex;align-items:center;gap:4px;';
-        var subCb = document.createElement('input');
-        subCb.type = 'checkbox';
-        subCb.checked = sub.done;
-        subCb.style.cssText = 'accent-color:#5a9e7a;width:12px;height:12px;flex-shrink:0;';
-        subCb.addEventListener('change', function() {
-          sub.done = this.checked;
-          saveTasks(); renderTasks(); renderTasksFloat();
-        });
-        var subText = document.createElement('span');
-        subText.style.cssText = 'font-size:11px;color:' + (sub.done ? '#ccc' : '#888') + ';' + (sub.done ? 'text-decoration:line-through;' : '');
-        subText.textContent = sub.text;
-        subRow.appendChild(subCb);
-        subRow.appendChild(subText);
-        subs.appendChild(subRow);
+      var collapsed = task.subtasksCollapsed || false;
+      var colBtn = document.createElement('button');
+      colBtn.textContent = collapsed ? '▶' : '▼';
+      colBtn.style.cssText = 'font-size:9px;color:#ccc;background:none;border:none;cursor:pointer;padding:0 2px;flex-shrink:0;';
+      colBtn.draggable = false;
+      colBtn.addEventListener('click', function() {
+        tasks[idx].subtasksCollapsed = !tasks[idx].subtasksCollapsed;
+        saveTasks(); renderTasks();
       });
-      wrap.appendChild(subs);
+      row.appendChild(colBtn);
+
+      if (!collapsed) {
+        var subs = document.createElement('div');
+        subs.style.cssText = 'padding-left:22px;display:flex;flex-direction:column;gap:2px;margin-bottom:4px;';
+        task.subtasks.forEach(function(sub) {
+          var subRow = document.createElement('div');
+          subRow.style.cssText = 'display:flex;align-items:center;gap:4px;';
+          var subCb = document.createElement('input');
+          subCb.type = 'checkbox';
+          subCb.checked = sub.done;
+          subCb.style.cssText = 'accent-color:#5a9e7a;width:12px;height:12px;flex-shrink:0;';
+          subCb.addEventListener('change', function() {
+            sub.done = this.checked;
+            saveTasks(); renderTasks();
+          });
+          var subText = document.createElement('span');
+          subText.style.cssText = 'font-size:11px;color:' + (sub.done ? '#ccc' : '#888') + ';' + (sub.done ? 'text-decoration:line-through;' : '');
+          subText.textContent = sub.text;
+          subRow.appendChild(subCb);
+          subRow.appendChild(subText);
+          subs.appendChild(subRow);
+        });
+        item.appendChild(row);
+        item.appendChild(subs);
+      } else {
+        item.appendChild(row);
+      }
+    } else {
+      item.appendChild(row);
     }
 
-    row.appendChild(cb);
-    row.appendChild(wrap);
-    floatList.appendChild(row);
+    floatList.appendChild(item);
   });
 }
 
