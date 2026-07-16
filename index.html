@@ -256,6 +256,43 @@ button:active { transform: scale(0.97); }
   border-radius: 12px; padding: 1rem 1.25rem;
   flex-direction: column; gap: 10px; display: none;
 }
+.habits-mini-section {
+  width: 100%; background: #fff; border: 1px solid #e8e8e8;
+  border-radius: 10px; overflow: hidden;
+}
+.habits-mini-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 8px 12px; cursor: pointer; user-select: none;
+  background: #f9f9f8;
+}
+.habits-mini-title { font-size: 11px; color: #2d9e4f; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; }
+.habits-mini-arrow { font-size: 10px; color: #bbb; }
+.habits-mini-week {
+  display: flex; gap: 4px; padding: 8px 12px 4px; overflow-x: auto;
+}
+.habits-mini-week-day {
+  display: flex; flex-direction: column; align-items: center; gap: 2px; flex-shrink: 0; min-width: 28px;
+}
+.habits-mini-week-label { font-size: 9px; color: #ccc; text-transform: uppercase; }
+.habits-mini-week-num {
+  font-size: 10px; color: #999; width: 20px; height: 20px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+}
+.habits-mini-week-num.today { background: #2d9e4f; color: #fff; }
+.habits-mini-week-dots { display: flex; flex-direction: column; gap: 1px; }
+.habits-mini-week-dot { font-size: 8px; line-height: 1; }
+.habits-mini-list { display: flex; flex-direction: column; gap: 2px; padding: 4px 12px 8px; }
+.habits-mini-item {
+  display: flex; align-items: center; gap: 8px; padding: 4px 0;
+  border-bottom: 1px solid #f5f5f5;
+}
+.habits-mini-item:last-child { border-bottom: none; }
+.habits-mini-emoji { font-size: 14px; flex-shrink: 0; }
+.habits-mini-name { flex: 1; font-size: 12px; color: #555; }
+.habits-mini-progress { font-size: 10px; color: #bbb; white-space: nowrap; }
+.habits-mini-progress.hit { color: #2d9e4f; font-weight: 600; }
+.habits-mini-check { accent-color: #2d9e4f; width: 14px; height: 14px; cursor: pointer; flex-shrink: 0; }
+.habits-mini-empty { font-size: 11px; color: #bbb; text-align: center; padding: 10px; }
 .later-box {
   width: 100%; background: #f5f0fb; border: 1px solid #d0b8e8;
   border-radius: 12px; padding: 1rem 1.25rem;
@@ -696,6 +733,16 @@ button:active { transform: scale(0.97); }
     </div>
   </div>
   <div class="task-float-body">
+    <div id="habitsMiniFloat" style="border-bottom:1px solid #f0f0f0;margin-bottom:6px;padding-bottom:6px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;padding:2px 0 4px;" id="habitsMiniFloatHeader">
+        <span style="font-size:10px;color:#2d9e4f;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;">🌿 today's habits</span>
+        <span style="font-size:9px;color:#bbb;" id="habitsMiniFloatArrow">▾</span>
+      </div>
+      <div id="habitsMiniFloatBody">
+        <div id="habitsMiniListFloat" style="display:flex;flex-direction:column;gap:2px;"></div>
+        <div id="habitsMiniEmptyFloat" style="font-size:11px;color:#bbb;text-align:center;padding:6px 0;display:none">no habits yet</div>
+      </div>
+    </div>
     <div id="taskListFloat"></div>
     <div class="task-empty" id="taskEmptyFloat" style="font-size:12px;padding:8px 0;">no tasks yet.</div>
     <div style="display:flex;gap:6px;padding:6px 0 2px;border-top:1px solid #f0f0f0;margin-top:4px">
@@ -945,6 +992,20 @@ button:active { transform: scale(0.97); }
           <div class="color-picker-label">tasks</div>
           <button class="task-clear-btn" id="tasksPopBtn" title="pop out task list">&#10697; pop out</button>
         </div>
+
+        <!-- Today's habits mini section -->
+        <div class="habits-mini-section" id="habitsMiniSection">
+          <div class="habits-mini-header" id="habitsMiniHeader">
+            <span class="habits-mini-title">🌿 today's habits</span>
+            <span class="habits-mini-arrow" id="habitsMiniArrow">▾</span>
+          </div>
+          <div id="habitsMiniBody">
+            <div id="habitsMiniWeek" class="habits-mini-week"></div>
+            <div id="habitsMiniList" class="habits-mini-list"></div>
+            <div id="habitsMiniEmpty" class="habits-mini-empty">no habits yet — <a href="habits.html" style="color:#2d9e4f;text-decoration:none;">add some in the habit tracker</a></div>
+          </div>
+        </div>
+
         <div class="task-list" id="taskList"></div>
         <div class="task-empty" id="taskEmpty">no tasks yet. add one above.</div>
         <div class="task-input-row" id="quickAddRow">
@@ -4005,6 +4066,188 @@ document.getElementById('resetUrgeBtn').addEventListener('click', function() {
 document.getElementById('sessionBtn').addEventListener('click', addSession);
 document.getElementById('addTrackerBtn').addEventListener('click', addTracker);
 document.getElementById('setCustomBtn').addEventListener('click', setCustomTime);
+// ---- HABITS MINI SECTION ----
+var habitsMiniOpen = true;
+
+function dateKey(d) {
+  return d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate());
+}
+
+function pad(n) { return n < 10 ? '0'+n : ''+n; }
+
+function loadHabitsMini() {
+  try {
+    var saved = localStorage.getItem('habitTracker2');
+    if (!saved) { renderHabitsMini([]); return; }
+    renderHabitsMini(JSON.parse(saved));
+  } catch(e) { renderHabitsMini([]); }
+}
+
+function renderHabitsMini(habits) {
+  var today = new Date();
+  var todayStr = dateKey(today);
+  var list = document.getElementById('habitsMiniList');
+  var week = document.getElementById('habitsMiniWeek');
+  var empty = document.getElementById('habitsMiniEmpty');
+  if (!list) return;
+  list.innerHTML = '';
+  week.innerHTML = '';
+  var floatListEl = document.getElementById('habitsMiniListFloat');
+  if (floatListEl) floatListEl.innerHTML = '';
+
+  if (!habits || habits.length === 0) {
+    empty.style.display = 'block';
+    list.style.display = 'none';
+    week.style.display = 'none';
+    return;
+  }
+  empty.style.display = 'none';
+  list.style.display = 'flex';
+  week.style.display = 'flex';
+
+  // Week strip
+  var days = ['S','M','T','W','T','F','S'];
+  var weekStartMonday = localStorage.getItem('habitWeekStart') === 'mon';
+  var start = new Date(today);
+  var offset = weekStartMonday ? (today.getDay() === 0 ? 6 : today.getDay()-1) : today.getDay();
+  start.setDate(today.getDate() - offset);
+  for (var i = 0; i < 7; i++) {
+    var d = new Date(start);
+    d.setDate(start.getDate() + i);
+    var k = dateKey(d);
+    var col = document.createElement('div');
+    col.className = 'habits-mini-week-day';
+    var lbl = document.createElement('div');
+    lbl.className = 'habits-mini-week-label';
+    lbl.textContent = weekStartMonday ? ['M','T','W','T','F','S','S'][i] : days[i];
+    var num = document.createElement('div');
+    num.className = 'habits-mini-week-num' + (k === todayStr ? ' today' : '');
+    num.textContent = d.getDate();
+    var dots = document.createElement('div');
+    dots.className = 'habits-mini-week-dots';
+    habits.forEach(function(h) {
+      var val = h.log[k];
+      var done = h.type === 'check' ? val === true : (typeof val === 'number' && val >= (h.goal||1));
+      if (done) {
+        var dot = document.createElement('span');
+        dot.className = 'habits-mini-week-dot';
+        dot.textContent = h.emoji || '●';
+        dots.appendChild(dot);
+      }
+    });
+    col.appendChild(lbl);
+    col.appendChild(num);
+    col.appendChild(dots);
+    week.appendChild(col);
+  }
+
+  // Today's habit list
+  habits.forEach(function(h, hi) {
+    var val = h.log[todayStr];
+    var done = h.type === 'check' ? val === true : (typeof val === 'number' && val >= (h.goal||1));
+
+    // Weekly progress
+    var weekDone = 0;
+    for (var i2 = 0; i2 < 7; i2++) {
+      var wd = new Date(start);
+      wd.setDate(start.getDate() + i2);
+      var wk = dateKey(wd);
+      var wv = h.log[wk];
+      var wdone = h.type === 'check' ? wv === true : (typeof wv === 'number' && wv >= (h.goal||1));
+      if (wdone) weekDone++;
+    }
+    var weekGoal = h.weekGoal || 0;
+
+    var row = document.createElement('div');
+    row.className = 'habits-mini-item';
+
+    var emoji = document.createElement('span');
+    emoji.className = 'habits-mini-emoji';
+    emoji.textContent = h.emoji || '●';
+
+    var name = document.createElement('span');
+    name.className = 'habits-mini-name';
+    name.textContent = h.name;
+
+    var prog = document.createElement('span');
+    prog.className = 'habits-mini-progress' + (weekGoal > 0 && weekDone >= weekGoal ? ' hit' : '');
+    prog.textContent = weekGoal > 0 ? weekDone + '/' + weekGoal + ' this week' : weekDone + ' this week';
+
+    var cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.className = 'habits-mini-check';
+    cb.checked = done;
+    cb.addEventListener('change', function() {
+      try {
+        var saved = localStorage.getItem('habitTracker2');
+        var allHabits = saved ? JSON.parse(saved) : [];
+        if (allHabits[hi]) {
+          if (allHabits[hi].type === 'check') {
+            allHabits[hi].log[todayStr] = this.checked;
+          } else {
+            allHabits[hi].log[todayStr] = this.checked ? (allHabits[hi].goal || 1) : 0;
+          }
+          localStorage.setItem('habitTracker2', JSON.stringify(allHabits));
+          loadHabitsMini();
+        }
+      } catch(e) {}
+    });
+
+    row.appendChild(emoji);
+    row.appendChild(name);
+    row.appendChild(prog);
+    row.appendChild(cb);
+    list.appendChild(row);
+
+    // Also render into float window
+    var floatList = document.getElementById('habitsMiniListFloat');
+    var floatEmpty = document.getElementById('habitsMiniEmptyFloat');
+    if (floatList) {
+      floatEmpty.style.display = 'none';
+      var floatRow = row.cloneNode(true);
+      // rewire the checkbox in the clone
+      var floatCb = floatRow.querySelector('input[type=checkbox]');
+      if (floatCb) {
+        floatCb.addEventListener('change', function() {
+          try {
+            var saved = localStorage.getItem('habitTracker2');
+            var allHabits = saved ? JSON.parse(saved) : [];
+            if (allHabits[hi]) {
+              if (allHabits[hi].type === 'check') allHabits[hi].log[todayStr] = this.checked;
+              else allHabits[hi].log[todayStr] = this.checked ? (allHabits[hi].goal || 1) : 0;
+              localStorage.setItem('habitTracker2', JSON.stringify(allHabits));
+              loadHabitsMini();
+            }
+          } catch(e) {}
+        });
+      }
+      floatList.appendChild(floatRow);
+    }
+  });
+}
+
+// Collapse toggle - main
+document.getElementById('habitsMiniHeader').addEventListener('click', function() {
+  habitsMiniOpen = !habitsMiniOpen;
+  document.getElementById('habitsMiniBody').style.display = habitsMiniOpen ? '' : 'none';
+  document.getElementById('habitsMiniArrow').textContent = habitsMiniOpen ? '▾' : '▸';
+});
+
+// Collapse toggle - float
+var habitsMiniFloatOpen = true;
+document.getElementById('habitsMiniFloatHeader').addEventListener('click', function() {
+  habitsMiniFloatOpen = !habitsMiniFloatOpen;
+  document.getElementById('habitsMiniFloatBody').style.display = habitsMiniFloatOpen ? '' : 'none';
+  document.getElementById('habitsMiniFloatArrow').textContent = habitsMiniFloatOpen ? '▾' : '▸';
+});
+
+loadHabitsMini();
+
+// Reload habits when tasks box opens (in case habits changed)
+document.getElementById('toggleTasks').addEventListener('click', function() {
+  setTimeout(loadHabitsMini, 100);
+});
+
 document.getElementById('newDayBtn').addEventListener('click', newDay);
 
 // Task float pop-out
