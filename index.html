@@ -126,8 +126,24 @@ body {
   transition: background 0.4s;
 }
 body.has-background .timer-card { background: rgba(255,255,255,0.92); }
-.progress-bar { width: 100%; height: 3px; background: #e8e8e8; border-radius: 2px; overflow: hidden; }
-.progress-fill { height: 100%; background: #1a1a1a; border-radius: 2px; width: 0%; transition: width 0.8s linear; }
+.progress-bar { width: 100%; height: 5px; background: var(--vibe-progress-bg, #e8e8e8); border-radius: 3px; overflow: hidden; }
+.progress-fill { height: 100%; background: var(--vibe-progress-fill, #1a1a1a); border-radius: 3px; width: 0%; transition: width 0.8s linear, background 2s ease; }
+
+/* Vibe selector */
+.vibe-selector {
+  display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; padding: 4px 0;
+}
+.vibe-btn {
+  font-size: 11px; padding: 5px 12px; border-radius: 20px; cursor: pointer;
+  border: 2px solid transparent; font-family: inherit; transition: all 0.2s;
+  font-weight: 600; letter-spacing: 0.03em;
+}
+.vibe-btn:hover { transform: scale(1.05); }
+.vibe-btn.active { border-color: currentColor; transform: scale(1.05); }
+.vibe-btn.vibe-calm { background: #f0f7f0; color: #2d9e4f; }
+.vibe-btn.vibe-creative { background: #fff700; color: #1a1a1a; }
+.vibe-btn.vibe-ocean { background: #e0f4ff; color: #0077b6; }
+.vibe-btn.vibe-dark { background: #1a1a2e; color: #e0e0ff; }
 .mantra { font-size: 14px; color: #999; text-align: center; line-height: 1.6; min-height: 44px; max-width: 300px; }
 .btn-row { display: flex; gap: 10px; }
 button {
@@ -693,6 +709,18 @@ button:active { transform: scale(0.97); }
   <div class="sticky-due" id="stickyDue"></div>
   <div class="sticky-time" id="stickyTime">25:00</div>
   <div class="sticky-bar"><div class="sticky-bar-fill" id="stickyFill"></div></div>
+  <div id="sessionPanel" style="display:none;width:100%;padding-top:8px;border-top:1px solid #e8e8e8;margin-top:6px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;max-width:420px;margin:0 auto;">
+      <button id="sessionDistrBtn" style="font-size:11px;padding:5px 12px;border:1.5px solid #e8e8e8;border-radius:8px;background:transparent;cursor:pointer;font-family:inherit;color:#888;white-space:nowrap;">🌀 distracted (<span id="sessionDistrCount">0</span>)</button>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer;flex-shrink:0;width:70px;" id="sessionBreathWrap">
+        <div style="width:50px;height:50px;display:flex;align-items:center;justify-content:center;">
+          <div id="sessionBreathRing" style="width:20px;height:20px;border-radius:50%;border:2.5px solid #ddd;transition:transform 4s ease-in-out,border-color 0.5s;"></div>
+        </div>
+        <span style="font-size:8px;color:#ccc;" id="sessionBreathLabel">breathe</span>
+      </div>
+      <button id="sessionUrgeBtn" style="font-size:11px;padding:5px 12px;border:1.5px solid #e8e8e8;border-radius:8px;background:transparent;cursor:pointer;font-family:inherit;color:#888;white-space:nowrap;">💫 urge (<span id="sessionUrgeCount">0</span>)</button>
+    </div>
+  </div>
 </div>
 
 <div id="breakSuggestion" style="display:none;position:fixed;top:0;left:0;right:0;z-index:999;flex-direction:row;align-items:center;justify-content:center;gap:12px;padding:10px 16px;background:#e8f5ee;border-bottom:2px solid #b2dcc2;">
@@ -757,6 +785,8 @@ button:active { transform: scale(0.97); }
   </div>
 </div>
 
+<div id="focusOverlay" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:50;background:rgba(0,0,0,0.55);pointer-events:none;transition:opacity 0.4s;"></div>
+
 <div class="container">
   <div class="spacer"></div>
 
@@ -779,6 +809,7 @@ button:active { transform: scale(0.97); }
 
     <div class="timer-display" id="display">25:00</div>
     <div class="progress-bar"><div class="progress-fill" id="fill"></div></div>
+
     <div class="mantra" id="mantra">you are here. this moment is enough.</div>
 
     <div class="btn-row">
@@ -786,6 +817,14 @@ button:active { transform: scale(0.97); }
       <button id="pauseBtn" style="display:none">pause</button>
       <button id="resetBtn">reset</button>
       <button id="finishBtn" style="display:none">I'm finished</button>
+    </div>
+    <div style="display:flex;align-items:center;justify-content:center;gap:8px;margin-top:4px;">
+      <button id="focusModeBtn" style="font-size:11px;color:#aaa;background:none;border:1px solid #e8e8e8;border-radius:20px;padding:3px 12px;cursor:pointer;font-family:inherit;transition:all 0.2s;">🎯 focus mode: off</button>
+    </div>
+
+    <div id="focusBanner" style="display:none;align-items:center;justify-content:space-between;gap:8px;padding:8px 14px;background:#f0f8ff;border:1px solid #b2dcc2;border-radius:10px;margin-top:8px;">
+      <span style="font-size:12px;color:#2d9e4f;">🌿 focus mode — stay here, you got this</span>
+      <button id="exitFocusBtn" style="font-size:11px;color:#aaa;background:none;border:1px solid #ddd;border-radius:20px;padding:2px 10px;cursor:pointer;font-family:inherit;">exit</button>
     </div>
 
     <div class="ritual-section" id="morningRitualSection" style="display:flex">
@@ -1035,6 +1074,14 @@ button:active { transform: scale(0.97); }
           <span class="task-hint" id="templateHint" style="display:none">tap the dot to recolor &middot; drag chips to reorder</span>
         </div>
         <div style="border-top:1px solid #b2dcc2;padding-top:10px;display:flex;flex-direction:column;gap:8px">
+          <div class="color-picker-label">vibe</div>
+          <div class="vibe-selector" id="vibeSelector">
+            <button class="vibe-btn vibe-calm active" data-vibe="calm">☁️ calm</button>
+            <button class="vibe-btn vibe-ocean" data-vibe="ocean">🌊 ocean</button>
+            <button class="vibe-btn vibe-dark" data-vibe="dark">🌙 dark</button>
+          </div>
+        </div>
+        <div style="border-top:1px solid #b2dcc2;padding-top:10px;display:flex;flex-direction:column;gap:8px">
           <div class="color-picker-label">timer color theme</div>
           <div class="color-picker-row" id="colorPicker">
             <div class="color-swatch selected" data-bg="#e8f5ee" data-border="#b2dcc2" data-text="#1a6b38" data-label="#7abf93" data-bar="#b2dcc2" style="background:#e8f5ee;border-color:#2d9e4f" title="green"></div>
@@ -1186,6 +1233,7 @@ function setDisplay(secs) {
 function setProgress(pct) {
   document.getElementById('fill').style.width = pct + '%';
   document.getElementById('stickyFill').style.width = pct + '%';
+  if (typeof updateProgressColor === 'function') updateProgressColor(pct);
 }
 
 function setTime(mins, btn) {
@@ -1497,6 +1545,10 @@ function startTimer() {
   document.querySelector('.sticky-header').classList.add('running');
   playBell();
   if (tickOn && !isBreak) startTick();
+  if (!isBreak) {
+    document.getElementById('sessionPanel').style.display = 'block';
+    if (focusModeOn) enterFocusMode();
+  }
   timerInterval = setInterval(function() {
     var secsLeft = Math.round((sessionEndTime - Date.now()) / 1000);
     if (secsLeft < 0) secsLeft = 0;
@@ -1610,6 +1662,8 @@ function pauseTimer() {
   if (!running) return;
   clearInterval(timerInterval);
   stopTick();
+  document.getElementById('sessionPanel').style.display = 'none';
+  if (focusModeOn) exitFocusMode();
   running = false;
   document.querySelector('.sticky-header').classList.remove('running');
   document.getElementById('startBtn').style.display = '';
@@ -1621,6 +1675,8 @@ function resetTimer() {
   clearInterval(breathInterval);
   stopBreathSound();
   stopTick();
+  document.getElementById('sessionPanel').style.display = 'none';
+  if (typeof focusModeOn !== 'undefined' && focusModeOn) exitFocusMode();
   running = false;
   breathActive = false;
   var wasBreak = isBreak;
@@ -3496,6 +3552,133 @@ function applyTheme(theme) {
   currentTheme = theme;
 }
 
+// ---- VIBE SYSTEM ----
+var VIBES = {
+  calm: {
+    '--vibe-bg': '#f9f9f8',
+    '--vibe-card': 'rgba(255,255,255,0.88)',
+    '--vibe-text': '#1a1a1a',
+    '--vibe-accent': '#2d9e4f',
+    '--vibe-progress-bg': '#e8e8e8',
+    '--vibe-progress-fill': '#2d9e4f',
+    '--vibe-progress-mid': '#f0a030',
+    '--vibe-progress-end': '#e04040',
+    body: { background: '#f9f9f8', color: '#1a1a1a', fontFamily: '' }
+  },
+
+  ocean: {
+    '--vibe-bg': '#e8f4fd',
+    '--vibe-card': 'rgba(230,245,255,0.92)',
+    '--vibe-text': '#0a3d62',
+    '--vibe-accent': '#0077b6',
+    '--vibe-progress-bg': '#b8dff5',
+    '--vibe-progress-fill': '#0077b6',
+    '--vibe-progress-mid': '#00b4d8',
+    '--vibe-progress-end': '#48cae4',
+    body: { background: '#e8f4fd', color: '#0a3d62', fontFamily: '' }
+  },
+  dark: {
+    '--vibe-bg': '#0f0f1a',
+    '--vibe-card': 'rgba(20,20,40,0.95)',
+    '--vibe-text': '#e0e0ff',
+    '--vibe-accent': '#7c3aed',
+    '--vibe-progress-bg': '#1a1a2e',
+    '--vibe-progress-fill': '#7c3aed',
+    '--vibe-progress-mid': '#06b6d4',
+    '--vibe-progress-end': '#10b981',
+    body: { background: '#0f0f1a', color: '#e0e0ff', fontFamily: '' }
+  }
+};
+
+var currentVibe = 'calm';
+
+function applyVibe(vibeName) {
+  var vibe = VIBES[vibeName];
+  if (!vibe) return;
+  currentVibe = vibeName;
+  var root = document.documentElement;
+  Object.keys(vibe).forEach(function(k) {
+    if (k.startsWith('--')) root.style.setProperty(k, vibe[k]);
+  });
+  if (vibe.body) {
+    document.body.style.background = vibe.body.background;
+    document.body.style.color = vibe.body.color;
+    document.body.style.setProperty('background-color', vibe.body.background, 'important');
+  }
+  // Update container bg too
+  var containers = document.querySelectorAll('.container, .timer-card, .sticky-header');
+  containers.forEach(function(el) {
+    if (vibeName === 'creative') {
+      el.style.background = vibeName === 'creative' ? 'rgba(255,247,0,0.97)' : '';
+      el.style.borderColor = '#1a1a1a';
+    } else if (vibeName === 'dark') {
+      el.style.background = '#0f0f1a';
+      el.style.borderColor = '#2a2a4e';
+    } else {
+      el.style.background = '';
+      el.style.borderColor = '';
+    }
+  });
+
+  // Update timer card bg to match
+  var card = document.querySelector('.timer-card');
+  if (card) card.style.background = vibe['--vibe-card'];
+
+  // Update sticky header accent
+  var stickyTask = document.getElementById('stickyTask');
+  if (stickyTask) stickyTask.style.color = 'var(--theme-text, ' + vibe['--vibe-accent'] + ')';
+
+  // Dark mode specific
+  var allCards = document.querySelectorAll('.box, .breath-section, .sessions-box, .trackers-box, .later-box, .scratch-box');
+  allCards.forEach(function(el) {
+    if (vibeName === 'dark') {
+      el.style.background = '#1a1a2e';
+      el.style.borderColor = '#2a2a4e';
+      el.style.color = '#e0e0ff';
+    } else {
+      el.style.background = '';
+      el.style.borderColor = '';
+      el.style.color = '';
+    }
+  });
+
+  // Active vibe button
+  document.querySelectorAll('.vibe-btn').forEach(function(btn) {
+    btn.classList.toggle('active', btn.getAttribute('data-vibe') === vibeName);
+  });
+
+  try { localStorage.setItem('focusTimerVibe', vibeName); } catch(e) {}
+}
+
+// Update progress bar color based on how far through session
+function updateProgressColor(pct) {
+  var vibe = VIBES[currentVibe];
+  if (!vibe) return;
+  var fill = document.getElementById('fill');
+  if (!fill) return;
+  // shift from start color → mid → end color based on progress
+  if (pct < 50) {
+    fill.style.background = vibe['--vibe-progress-fill'];
+  } else if (pct < 80) {
+    fill.style.background = vibe['--vibe-progress-mid'];
+  } else {
+    fill.style.background = vibe['--vibe-progress-end'];
+  }
+}
+
+// Wire up vibe buttons
+document.querySelectorAll('.vibe-btn').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    applyVibe(this.getAttribute('data-vibe'));
+  });
+});
+
+// Load saved vibe
+try {
+  var savedVibe = localStorage.getItem('focusTimerVibe');
+  if (savedVibe && VIBES[savedVibe]) applyVibe(savedVibe);
+} catch(e) {}
+
 applyTheme(currentTheme);
 // Section reordering - restore saved order only, drag disabled for now
 (function() {
@@ -4313,6 +4496,153 @@ loadHabitsMini();
 document.getElementById('toggleTasks').addEventListener('click', function() {
   setTimeout(loadHabitsMini, 100);
 });
+
+// Session panel (distraction/urge quick buttons during timer)
+document.getElementById('sessionDistrBtn').addEventListener('click', function() {
+  document.getElementById('distractBtn').click();
+  document.getElementById('sessionDistrCount').textContent = document.getElementById('distractNum').textContent;
+  this.style.borderColor = '#e87c3a';
+  var btn = this;
+  setTimeout(function() { btn.style.borderColor = ''; }, 800);
+  triggerSessionBreathe();
+});
+
+document.getElementById('sessionUrgeBtn').addEventListener('click', function() {
+  document.getElementById('urgeBtn').click();
+  document.getElementById('sessionUrgeCount').textContent = document.getElementById('urgeNum').textContent;
+  this.style.borderColor = '#9b6ec8';
+  var btn = this;
+  setTimeout(function() { btn.style.borderColor = ''; }, 800);
+  triggerSessionBreathe();
+});
+
+function triggerSessionBreathe() {
+  var ring = document.getElementById('sessionBreathRing');
+  var label = document.getElementById('sessionBreathLabel');
+  if (!ring || !label) return;
+  // animate the mini ring
+  ring.style.borderColor = '#56cfe1';
+  ring.style.transform = 'scale(1.8)';
+  label.textContent = 'in...';
+  // trigger full sound + visual
+  startBreathCycle();
+  if (typeof startBreath === 'function' && !breathActive) startBreath();
+  setTimeout(function() {
+    ring.style.transform = 'scale(1)';
+    label.textContent = 'out...';
+    setTimeout(function() {
+      ring.style.borderColor = '#e8e8e8';
+      label.textContent = 'breathe';
+    }, 4200);
+  }, 4000);
+}
+
+document.getElementById('sessionBreathWrap').addEventListener('click', function() {
+  triggerSessionBreathe();
+});
+
+// Sync session panel counts with main counters
+function syncSessionPanel() {
+  var d = document.getElementById('sessionDistrCount');
+  var u = document.getElementById('sessionUrgeCount');
+  if (d) d.textContent = document.getElementById('distractNum').textContent;
+  if (u) u.textContent = document.getElementById('urgeNum').textContent;
+}
+
+// ---- FOCUS MODE ----
+var focusModeOn = false;
+
+function enterFocusMode() {
+  try {
+    var el = document.documentElement;
+    if (el.requestFullscreen) el.requestFullscreen();
+    else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+  } catch(e) {}
+
+  // Dim overlay
+  var overlay = document.getElementById('focusOverlay');
+  if (overlay) { overlay.style.display = 'block'; setTimeout(function() { overlay.style.opacity = '1'; }, 10); }
+
+  // Lift timer card above overlay
+  var card = document.querySelector('.timer-card');
+  if (card) { card.style.position = 'relative'; card.style.zIndex = '60'; }
+
+  // Collapse all sections
+  var boxes = ['soundPanel','trackersBox','sessionsBox','tasksBox','laterBox','scratchBox'];
+  boxes.forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) el.style.display = 'none';
+  });
+  var chips = {
+    'toggleSound': '&#9658; noise &amp; sound',
+    'toggleCalls': '&#9658; trackers',
+    'toggleSessions': '&#9658; sessions completed',
+    'toggleTasks': '&#9658; my tasks',
+    'toggleLater': '&#9658; later',
+    'toggleScratch': '&#9658; scratchpad'
+  };
+  Object.keys(chips).forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) el.innerHTML = chips[id];
+  });
+
+  document.getElementById('focusBanner').style.display = 'flex';
+  document.getElementById('focusModeBtn').style.color = '#2d9e4f';
+  document.getElementById('focusModeBtn').style.borderColor = '#2d9e4f';
+  document.getElementById('focusModeBtn').textContent = '\ud83c\udfaf focus mode: on';
+}
+
+function exitFocusMode() {
+  try {
+    if (document.exitFullscreen) document.exitFullscreen();
+    else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+  } catch(e) {}
+
+  // Remove overlay
+  var overlay = document.getElementById('focusOverlay');
+  if (overlay) { overlay.style.opacity = '0'; setTimeout(function() { overlay.style.display = 'none'; }, 400); }
+
+  // Reset timer card
+  var card = document.querySelector('.timer-card');
+  if (card) { card.style.position = ''; card.style.zIndex = ''; }
+
+  document.getElementById('focusBanner').style.display = 'none';
+  document.getElementById('focusModeBtn').style.color = '';
+  document.getElementById('focusModeBtn').style.borderColor = '';
+  document.getElementById('focusModeBtn').textContent = '\ud83c\udfaf focus mode: off';
+}
+
+document.getElementById('focusModeBtn').addEventListener('click', function() {
+  focusModeOn = !focusModeOn;
+  try { localStorage.setItem('focusTimerFocusMode', focusModeOn ? '1' : '0'); } catch(e) {}
+  if (focusModeOn) {
+    this.style.color = '#2d9e4f';
+    this.style.borderColor = '#2d9e4f';
+    this.textContent = '🎯 focus mode: on';
+    if (running) enterFocusMode(); // re-enter fullscreen if timer is running
+  } else {
+    exitFocusMode();
+  }
+});
+
+document.getElementById('exitFocusBtn').addEventListener('click', function() {
+  // Just exit fullscreen — focus mode stays on so button can re-enter
+  try {
+    if (document.exitFullscreen) document.exitFullscreen();
+    else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+  } catch(e) {}
+  document.getElementById('focusBanner').style.display = 'none';
+});
+
+// Load saved focus mode pref
+try {
+  if (localStorage.getItem('focusTimerFocusMode') === '1') {
+    focusModeOn = true;
+    document.getElementById('focusModeBtn').style.color = '#2d9e4f';
+    document.getElementById('focusModeBtn').style.borderColor = '#2d9e4f';
+    document.getElementById('focusModeBtn').textContent = '🎯 focus mode: on';
+  }
+} catch(e) {}
 
 document.getElementById('newDayBtn').addEventListener('click', newDay);
 
