@@ -1579,6 +1579,16 @@ function startTimer() {
           ? "clean run. session logged automatically."
           : "session done & logged. " + distractions + " distractions, " + urges + " urges caught.";
         showBreakSuggestion();
+    distractions = 0; urges = 0;
+    document.getElementById('distractNum').textContent = '0';
+    document.getElementById('urgeNum').textContent = '0';
+    document.getElementById('sessionDistrCount').textContent = '0';
+    document.getElementById('sessionUrgeCount').textContent = '0';
+        distractions = 0; urges = 0;
+        document.getElementById('distractNum').textContent = '0';
+        document.getElementById('urgeNum').textContent = '0';
+        document.getElementById('sessionDistrCount').textContent = '0';
+        document.getElementById('sessionUrgeCount').textContent = '0';
     resetRitual();
         resetRitual();
       }
@@ -1619,6 +1629,16 @@ document.addEventListener('visibilitychange', function() {
           ? "clean run. session logged automatically."
           : "session done & logged. " + distractions + " distractions, " + urges + " urges caught.";
         showBreakSuggestion();
+    distractions = 0; urges = 0;
+    document.getElementById('distractNum').textContent = '0';
+    document.getElementById('urgeNum').textContent = '0';
+    document.getElementById('sessionDistrCount').textContent = '0';
+    document.getElementById('sessionUrgeCount').textContent = '0';
+        distractions = 0; urges = 0;
+        document.getElementById('distractNum').textContent = '0';
+        document.getElementById('urgeNum').textContent = '0';
+        document.getElementById('sessionDistrCount').textContent = '0';
+        document.getElementById('sessionUrgeCount').textContent = '0';
     resetRitual();
         resetRitual();
       }
@@ -1647,6 +1667,11 @@ function finishEarly() {
     d.style.display = 'block';
     d.textContent = "session finished early & logged. " + distractions + " distractions, " + urges + " urges caught.";
     showBreakSuggestion();
+    distractions = 0; urges = 0;
+    document.getElementById('distractNum').textContent = '0';
+    document.getElementById('urgeNum').textContent = '0';
+    document.getElementById('sessionDistrCount').textContent = '0';
+    document.getElementById('sessionUrgeCount').textContent = '0';
     resetRitual();
   }
 
@@ -3644,9 +3669,53 @@ function applyVibe(vibeName) {
     }
   });
 
+  // Dark mode button styles
+  var startBtn = document.getElementById('startBtn');
+  var pauseBtn = document.getElementById('pauseBtn');
+  var resetBtn = document.getElementById('resetBtn');
+  if (vibeName === 'dark') {
+    if (startBtn) { startBtn.style.background = '#7c3aed'; startBtn.style.color = '#fff'; startBtn.style.borderColor = '#7c3aed'; }
+    if (pauseBtn) { pauseBtn.style.background = '#2a2a4e'; pauseBtn.style.color = '#e0e0ff'; pauseBtn.style.borderColor = '#4a4a7e'; }
+    if (resetBtn) { resetBtn.style.background = '#2a2a4e'; resetBtn.style.color = '#e0e0ff'; resetBtn.style.borderColor = '#4a4a7e'; }
+    document.querySelectorAll('button:not(.vibe-btn):not(.primary):not(.seal-btn):not(#startBtn)').forEach(function(b) {
+      b.style.color = '#c0c0e0';
+    });
+  } else {
+    if (startBtn) { startBtn.style.background = ''; startBtn.style.color = ''; startBtn.style.borderColor = ''; }
+    if (pauseBtn) { pauseBtn.style.background = ''; pauseBtn.style.color = ''; pauseBtn.style.borderColor = ''; }
+    if (resetBtn) { resetBtn.style.background = ''; resetBtn.style.color = ''; resetBtn.style.borderColor = ''; }
+    document.querySelectorAll('button:not(.vibe-btn):not(.primary):not(.seal-btn):not(#startBtn)').forEach(function(b) {
+      b.style.color = '';
+    });
+  }
+
   // Active vibe button
   document.querySelectorAll('.vibe-btn').forEach(function(btn) {
     btn.classList.toggle('active', btn.getAttribute('data-vibe') === vibeName);
+  });
+
+  // Ritual section theming
+  var ritualColors = {
+    calm:  { bg: '#fdfbf6', border: '#e8dfc8', accent: '#c9a83a', text: '#555' },
+    ocean: { bg: '#f0f8ff', border: '#b2dcc2', accent: '#0077b6', text: '#0a3d62' },
+    dark:  { bg: '#1a1a2e', border: '#2a2a4e', accent: '#7c3aed', text: '#c0c0e0' }
+  };
+  var rc = ritualColors[vibeName] || ritualColors.calm;
+  document.querySelectorAll('.ritual-section').forEach(function(el) {
+    el.style.background = rc.bg;
+    el.style.borderColor = rc.border;
+  });
+  document.querySelectorAll('.ritual-title').forEach(function(el) {
+    el.style.color = rc.accent;
+  });
+  document.querySelectorAll('.ritual-item-text').forEach(function(el) {
+    if (!el.classList.contains('checked')) el.style.color = rc.text;
+  });
+  document.querySelectorAll('.ritual-item input[type=checkbox]').forEach(function(el) {
+    el.style.accentColor = rc.accent;
+  });
+  document.querySelectorAll('.ritual-progress.complete').forEach(function(el) {
+    el.style.color = rc.accent;
   });
 
   try { localStorage.setItem('focusTimerVibe', vibeName); } catch(e) {}
@@ -4035,10 +4104,12 @@ function updateProgress(items, checked, progressId) {
 
 function renderMorningRitual() {
   makeRitualList(morningItems, morningChecked, morningEditing, saveMorning, function() { saveMorning(); renderMorningRitual(); }, 'morningProgress', 'morningRitualList', 'morningRitualSection');
+  if (typeof currentVibe !== 'undefined') applyVibe(currentVibe);
 }
 
 function renderRitual() {
   makeRitualList(ritualItems, ritualChecked, ritualEditing, function(){}, function() { saveRitual(); renderRitual(); }, 'ritualProgress', 'ritualList', 'ritualSection');
+  if (typeof currentVibe !== 'undefined') applyVibe(currentVibe);
 }
 
 // Morning edit/add/reset
