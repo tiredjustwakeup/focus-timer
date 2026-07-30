@@ -2924,6 +2924,11 @@ function renderTasksFloat() {
     cb.draggable = false;
     cb.addEventListener('change', function() {
       tasks[idx].done = this.checked;
+      if (this.checked) {
+        // move to bottom, after other done tasks
+        var moved = tasks.splice(idx, 1)[0];
+        tasks.push(moved);
+      }
       saveTasks(); renderTasks();
     });
 
@@ -3106,6 +3111,10 @@ function renderTasks() {
       cb.checked = task.done;
       cb.addEventListener('change', function() {
         tasks[idx].done = this.checked;
+        if (this.checked) {
+          var moved = tasks.splice(idx, 1)[0];
+          tasks.push(moved);
+        }
         saveTasks();
         renderTasks();
       });
