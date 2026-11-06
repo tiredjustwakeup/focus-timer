@@ -4230,6 +4230,42 @@ loadTasks();
 loadTemplates();
 loadStats();
 loadTrackers();
+
+// ---- AUTO NEW DAY ----
+function todayKeyLocal() {
+  var d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+
+function checkNewDay(live) {
+  var today = todayKeyLocal();
+  var last = null;
+  try { last = localStorage.getItem('focusTimerLastDay'); } catch(e) {}
+  if (last === today) return;
+  try { localStorage.setItem('focusTimerLastDay', today); } catch(e) {}
+  if (last === null) return; // first run with this feature: just start tracking
+  // It is a new day: reset sessions and trackers quietly
+  sessions = 0;
+  document.getElementById('sessionsNum').textContent = '0';
+  if (typeof updateSessionCountDisplay === 'function') updateSessionCountDisplay();
+  refreshSessionMsg();
+  saveStats();
+  resetAllTrackers();
+  if (live) {
+    // page was left open past midnight: refresh the other daily pieces too
+    if (typeof morningItems !== 'undefined' && morningItems.length) {
+      morningChecked = new Array(morningItems.length).fill(false);
+      saveMorning();
+      renderMorningRitual();
+    }
+    if (typeof loadHabitsMini === 'function') loadHabitsMini();
+  }
+}
+
+checkNewDay(false);
+setInterval(function() { checkNewDay(true); }, 60000);
+document.addEventListener('visibilitychange', function() { if (!document.hidden) checkNewDay(true); });
+window.addEventListener('focus', function() { checkNewDay(true); });
 loadLaterTasks();
 loadRitual();
 
