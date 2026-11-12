@@ -850,6 +850,31 @@ button:active { transform: scale(0.97); }
       <button id="focusModeBtn" style="font-size:11px;color:#aaa;background:none;border:1px solid #e8e8e8;border-radius:20px;padding:2px 10px;cursor:pointer;font-family:inherit;transition:all 0.2s;">🎯 focus mode: off</button>
     </div>
 
+    <div style="display:flex;align-items:center;justify-content:center;margin-top:2px;">
+      <button id="fmBtn" title="auto-start the timer at the next start time" style="font-size:11px;color:#aaa;background:none;border:1px solid #e8e8e8;border-radius:20px;padding:2px 10px;cursor:pointer;font-family:inherit;transition:all 0.2s;">🤝 focusmate mode: off</button>
+    </div>
+    <div id="fmPanel" style="display:none;flex-direction:column;align-items:center;gap:6px;margin-top:6px;">
+      <div style="display:flex;align-items:center;justify-content:center;gap:6px;flex-wrap:wrap;">
+        <button class="fm-len" data-mins="25" style="font-size:11px;color:#aaa;background:none;border:1px solid #e8e8e8;border-radius:20px;padding:2px 10px;cursor:pointer;font-family:inherit;transition:all 0.2s;">25</button>
+        <button class="fm-len" data-mins="50" style="font-size:11px;color:#aaa;background:none;border:1px solid #e8e8e8;border-radius:20px;padding:2px 10px;cursor:pointer;font-family:inherit;transition:all 0.2s;">50</button>
+        <button class="fm-len" data-mins="75" style="font-size:11px;color:#aaa;background:none;border:1px solid #e8e8e8;border-radius:20px;padding:2px 10px;cursor:pointer;font-family:inherit;transition:all 0.2s;">75</button>
+        <select id="fmInterval" style="font-size:11px;padding:2px 8px;border:1px solid #e8e8e8;border-radius:20px;background:none;color:#888;font-family:inherit;">
+          <option value="30">starts at :00 and :30</option>
+          <option value="60">starts at :00</option>
+          <option value="15">starts every 15 min</option>
+        </select>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:center;gap:6px;flex-wrap:wrap;">
+        <button id="fmRepeat" style="font-size:11px;color:#aaa;background:none;border:1px solid #e8e8e8;border-radius:20px;padding:2px 10px;cursor:pointer;font-family:inherit;transition:all 0.2s;">🔁 repeat: on</button>
+        <select id="fmBreak" style="font-size:11px;padding:2px 8px;border:1px solid #e8e8e8;border-radius:20px;background:none;color:#888;font-family:inherit;">
+          <option value="5">5 min break</option>
+          <option value="10">10 min break</option>
+          <option value="15">15 min break</option>
+        </select>
+      </div>
+      <div id="fmStatus" style="font-size:12px;color:#888;text-align:center;"></div>
+    </div>
+
     <div id="focusBanner" style="display:none; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 14px; background: rgb(240, 248, 255); border: 1px solid rgb(178, 220, 194); border-radius: 10px; margin-top: 8px;">
       <span style="font-size:12px;color:#2d9e4f;">🌿 focus mode — stay here, you got this</span>
       <button id="exitFocusBtn" style="font-size: 11px; background: none; border: 1px solid rgb(221, 221, 221); border-radius: 20px; padding: 2px 10px; cursor: pointer; font-family: inherit;">exit</button>
@@ -1623,6 +1648,7 @@ function startTimer() {
       remaining = TOTAL;
       setDisplay(remaining);
       setProgress(0);
+      if (window.fmOnComplete) window.fmOnComplete();
     }
   }, 1000);
 }
@@ -1673,12 +1699,14 @@ document.addEventListener('visibilitychange', function() {
       remaining = TOTAL;
       setDisplay(remaining);
       setProgress(0);
+      if (window.fmOnComplete) window.fmOnComplete();
     }
   }
 });
 
 function finishEarly() {
   if (!running && remaining === TOTAL) return;
+  if (window.fmOnManualStop) window.fmOnManualStop();
   clearInterval(timerInterval);
   clearInterval(breathInterval);
   stopBreathSound();
@@ -1724,6 +1752,7 @@ function pauseTimer() {
 }
 
 function resetTimer() {
+  if (window.fmOnManualStop) window.fmOnManualStop();
   clearInterval(timerInterval);
   clearInterval(breathInterval);
   stopBreathSound();
@@ -4895,7 +4924,7 @@ document.getElementById('quickAddFloat').addEventListener('keydown', function(e)
 // Backup export
 document.getElementById('exportDataBtn').addEventListener('click', function() {
   var keys = [
-    'focusTimerTasks', 'focusTimerTaskName', 'focusTimerLater', 'focusTimerStats', 'focusTimerTrackers',
+    'focusTimerTasks', 'focusTimerTaskName', 'focusTimerFocusmate', 'focusTimerLater', 'focusTimerStats', 'focusTimerTrackers',
     'focusTimerTemplates', 'focusTimerSectionOrder', 'focusTimerScratch',
     'focusTimerSealPos', 'focusTimerSealWidth', 'focusTimerBgUrl',
     'focusTimerBgCustom', 'focusTimerBgOpacity', 'focusTimerRitual',
@@ -5159,6 +5188,256 @@ for (var i = 0; i < timeBtns.length; i++) {
   function save(t) { try { if (t && t !== 'break') localStorage.setItem('focusTimerTaskName', t); } catch(e) {} }
   new MutationObserver(function() { save(st.textContent.trim()); }).observe(st, { childList: true, characterData: true, subtree: true });
   st.addEventListener('input', function() { save(st.textContent.trim()); });
+})();
+
+// ---- FOCUSMATE MODE: auto-start at the next start time, then repeat session + break ----
+(function() {
+  var KEY = 'focusTimerFocusmate';
+  var fm = { armed: false, active: false, mins: 50, interval: 30, repeat: true, breakMins: 10,
+             target: 0, phase: null, phaseEnd: 0, busy: false };
+  try {
+    var s = JSON.parse(localStorage.getItem(KEY) || 'null');
+    if (s) {
+      if ([25, 50, 75].indexOf(s.mins) !== -1) fm.mins = s.mins;
+      if ([15, 30, 60].indexOf(s.interval) !== -1) fm.interval = s.interval;
+      if (typeof s.repeat === 'boolean') fm.repeat = s.repeat;
+      if ([5, 10, 15].indexOf(s.breakMins) !== -1) fm.breakMins = s.breakMins;
+    }
+  } catch(e) {}
+
+  var btn = document.getElementById('fmBtn');
+  var panel = document.getElementById('fmPanel');
+  var statusEl = document.getElementById('fmStatus');
+  var sel = document.getElementById('fmInterval');
+  var repBtn = document.getElementById('fmRepeat');
+  var brkSel = document.getElementById('fmBreak');
+  var lenBtns = document.querySelectorAll('.fm-len');
+  var tickTimer = null;
+
+  function save() {
+    try { localStorage.setItem(KEY, JSON.stringify({ mins: fm.mins, interval: fm.interval, repeat: fm.repeat, breakMins: fm.breakMins })); } catch(e) {}
+  }
+
+  function nextStart(intervalMin) {
+    var t = new Date();
+    t.setSeconds(0, 0);
+    t.setMinutes((Math.floor(t.getMinutes() / intervalMin) + 1) * intervalMin);
+    return t.getTime();
+  }
+
+  function clock(ms) { return new Date(ms).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }); }
+
+  function countdown(ms) {
+    var s = Math.max(0, Math.ceil(ms / 1000));
+    var m = Math.floor(s / 60), sec = s % 60;
+    return m + ':' + (sec < 10 ? '0' : '') + sec;
+  }
+
+  function paintLen() {
+    lenBtns.forEach(function(b) {
+      var on = parseInt(b.getAttribute('data-mins'), 10) === fm.mins;
+      b.style.color = on ? '#2d9e4f' : '#aaa';
+      b.style.borderColor = on ? '#2d9e4f' : '#e8e8e8';
+    });
+  }
+
+  function paintRepeat() {
+    repBtn.textContent = '🔁 repeat: ' + (fm.repeat ? 'on' : 'off');
+    repBtn.style.color = fm.repeat ? '#2d9e4f' : '#aaa';
+    repBtn.style.borderColor = fm.repeat ? '#2d9e4f' : '#e8e8e8';
+    brkSel.style.display = fm.repeat ? '' : 'none';
+  }
+
+  function paintMain() {
+    var on = fm.armed || fm.active;
+    btn.textContent = '🤝 focusmate mode: ' + (on ? 'on' : 'off');
+    btn.style.color = on ? '#2d9e4f' : '#aaa';
+    btn.style.borderColor = on ? '#2d9e4f' : '#e8e8e8';
+  }
+
+  function clearActiveTimeBtns() {
+    document.querySelectorAll('.time-btn').forEach(function(b) { b.classList.remove('active'); });
+  }
+
+  // show the chosen length on the clock while waiting (does not touch your session ritual)
+  function showIdle() {
+    if (running || isBreak) return;
+    TOTAL = fm.mins * 60;
+    remaining = TOTAL;
+    setDisplay(TOTAL);
+    setProgress(0);
+    clearActiveTimeBtns();
+  }
+
+  function hidePanelSoon() {
+    setTimeout(function() {
+      if (!fm.armed && !fm.active) { panel.style.display = 'none'; statusEl.textContent = ''; }
+    }, 8000);
+  }
+
+  function stopAll(msg) {
+    fm.armed = false;
+    fm.active = false;
+    fm.phase = null;
+    clearInterval(tickTimer);
+    tickTimer = null;
+    paintMain();
+    if (msg) { panel.style.display = 'flex'; statusEl.textContent = msg; hidePanelSoon(); }
+    else { panel.style.display = 'none'; statusEl.textContent = ''; }
+  }
+
+  // focus mode stays manual: drop it so one tap on the button enters it for the new session
+  function dropFocusMode() {
+    if (!focusModeOn) return;
+    focusModeOn = false;
+    var ov = document.getElementById('focusOverlay');
+    if (document.fullscreenElement || (ov && ov.style.display === 'block')) {
+      try { exitFocusMode(); } catch(e) {}
+      return;
+    }
+    var fb = document.getElementById('focusModeBtn');
+    fb.style.color = '';
+    fb.style.borderColor = '';
+    fb.textContent = '🎯 focus mode: off';
+  }
+
+  function startSession(lateSec) {
+    var total = fm.mins * 60;
+    fm.busy = true;
+    try {
+      if (isBreak) resetTimer();
+      hideBreakSuggestion();
+      dropFocusMode();
+      isBreak = false;
+      TOTAL = total;
+      remaining = Math.max(1, total - lateSec);   // if we woke up late, finish on time with the session
+      setDisplay(remaining);
+      setProgress((total - remaining) / total * 100);
+      document.getElementById('mantra').textContent = mantras[0];
+      clearActiveTimeBtns();
+      fm.phase = 'session';
+      startTimer();
+    } finally { fm.busy = false; }
+  }
+
+  function startBreak(lateSec) {
+    var secs = fm.breakMins * 60;
+    fm.busy = true;
+    try {
+      hideBreakSuggestion();
+      dropFocusMode();
+      startBreakTimer(fm.breakMins);
+      if (lateSec > 0) {
+        remaining = Math.max(1, secs - lateSec);
+        sessionEndTime -= lateSec * 1000;
+        setDisplay(remaining);
+        setProgress((secs - remaining) / secs * 100);
+      }
+      fm.phase = 'break';
+    } finally { fm.busy = false; }
+  }
+
+  // called by the timer whenever one ends on its own
+  function onComplete() {
+    if (!fm.active || !fm.phase) return;
+    var now = Date.now();
+    var t = fm.phaseEnd;                          // when the next phase was scheduled to begin
+    if (now < t) t = now;                         // ended early (e.g. after a pause): go right away
+    var phase = fm.phase === 'session' ? 'break' : 'session';
+    var guard = 0;
+    while (guard++ < 200) {                       // skip phases that fully passed while the page slept
+      var dur = (phase === 'break' ? fm.breakMins : fm.mins) * 60 * 1000;
+      if (now - t >= dur) { t += dur; phase = phase === 'break' ? 'session' : 'break'; } else break;
+    }
+    var late = Math.max(0, Math.floor((now - t) / 1000));
+    fm.phaseEnd = t + (phase === 'break' ? fm.breakMins : fm.mins) * 60 * 1000;
+    if (phase === 'break') startBreak(late); else startSession(late);
+    tick();
+  }
+
+  function fire(lateSec) {
+    var total = fm.mins * 60;
+    var startLabel = clock(fm.target);
+    if (lateSec >= total) { stopAll('missed the ' + startLabel + ' start'); return; }
+    if (running) { stopAll('timer was already running, so nothing was started'); return; }
+    fm.armed = false;
+    fm.phaseEnd = fm.target + total * 1000;
+    startSession(lateSec);
+    if (fm.repeat) { fm.active = true; paintMain(); tick(); }
+    else { stopAll('started at ' + startLabel); }
+  }
+
+  function tick() {
+    if (fm.armed) {
+      var diff = fm.target - Date.now();
+      if (diff > 0) {
+        statusEl.textContent = 'starts at ' + clock(fm.target) + ' (in ' + countdown(diff) + ')';
+        return;
+      }
+      fire(Math.floor(-diff / 1000));
+      return;
+    }
+    if (fm.active) {
+      if (fm.phase === 'session') statusEl.textContent = 'session until ' + clock(fm.phaseEnd) + ', then a ' + fm.breakMins + ' min break';
+      else if (fm.phase === 'break') statusEl.textContent = 'break until ' + clock(fm.phaseEnd) + ', then the next session starts';
+    }
+  }
+
+  function arm() {
+    fm.armed = true;
+    fm.active = false;
+    fm.target = nextStart(fm.interval);
+    try { var p = getAudioCtx().resume(); if (p && p.catch) p.catch(function() {}); } catch(e) {}  // unlock the bell while we have a click
+    paintMain();
+    panel.style.display = 'flex';
+    paintLen();
+    paintRepeat();
+    showIdle();
+    tick();
+    if (!tickTimer) tickTimer = setInterval(tick, 1000);
+  }
+
+  window.fmOnComplete = onComplete;
+  window.fmOnManualStop = function() {
+    if (fm.busy) return;
+    if (fm.armed || fm.active) stopAll('focusmate mode off (timer was stopped)');
+  };
+
+  btn.addEventListener('click', function() { if (fm.armed || fm.active) stopAll(); else arm(); });
+
+  lenBtns.forEach(function(b) {
+    b.addEventListener('click', function() {
+      fm.mins = parseInt(this.getAttribute('data-mins'), 10);
+      save();
+      paintLen();
+      showIdle();
+    });
+  });
+
+  sel.addEventListener('change', function() {
+    fm.interval = parseInt(this.value, 10);
+    save();
+    if (fm.armed) { fm.target = nextStart(fm.interval); tick(); }
+  });
+
+  repBtn.addEventListener('click', function() {
+    fm.repeat = !fm.repeat;
+    save();
+    paintRepeat();
+    if (!fm.repeat && fm.active) stopAll('repeat is off. the current timer will finish on its own');
+  });
+
+  brkSel.addEventListener('change', function() {
+    fm.breakMins = parseInt(this.value, 10);
+    save();
+  });
+
+  document.addEventListener('visibilitychange', function() { if (!document.hidden) tick(); });
+
+  sel.value = String(fm.interval);
+  brkSel.value = String(fm.breakMins);
+  paintLen();
+  paintRepeat();
 })();
 </script>
 </body>
