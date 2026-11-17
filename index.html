@@ -866,11 +866,10 @@ button:active { transform: scale(0.97); }
       </div>
       <div style="display:flex;align-items:center;justify-content:center;gap:6px;flex-wrap:wrap;">
         <button id="fmRepeat" style="font-size:11px;color:#aaa;background:none;border:1px solid #e8e8e8;border-radius:20px;padding:2px 10px;cursor:pointer;font-family:inherit;transition:all 0.2s;">🔁 repeat: on</button>
-        <select id="fmBreak" style="font-size:11px;padding:2px 8px;border:1px solid #e8e8e8;border-radius:20px;background:none;color:#888;font-family:inherit;">
-          <option value="5">5 min break</option>
-          <option value="10">10 min break</option>
-          <option value="15">15 min break</option>
-        </select>
+      </div>
+      <div id="fmCatchup" style="display:none;flex-direction:column;align-items:center;gap:4px;">
+        <div style="font-size:11px;color:#aaa;">already started? join the session that began at</div>
+        <div id="fmCatchupBtns" style="display:flex;gap:6px;flex-wrap:wrap;justify-content:center;"></div>
       </div>
       <div id="fmStatus" style="font-size:12px;color:#888;text-align:center;"></div>
     </div>
@@ -5193,15 +5192,16 @@ for (var i = 0; i < timeBtns.length; i++) {
 // ---- FOCUSMATE MODE: auto-start at the next start time, then repeat session + break ----
 (function() {
   var KEY = 'focusTimerFocusmate';
-  var fm = { armed: false, active: false, mins: 50, interval: 30, repeat: true, breakMins: 10,
+  var fm = { armed: false, active: false, mins: 50, interval: 30, repeat: true,
              target: 0, phase: null, phaseEnd: 0, busy: false };
+  function brk() { return { 25: 5, 50: 10, 75: 15 }[fm.mins] || 10; }   // break length follows the session length
+  var PILL = 'font-size:11px;color:#888;background:none;border:1px solid #e8e8e8;border-radius:20px;padding:2px 10px;cursor:pointer;font-family:inherit;transition:all 0.2s;';
   try {
     var s = JSON.parse(localStorage.getItem(KEY) || 'null');
     if (s) {
       if ([25, 50, 75].indexOf(s.mins) !== -1) fm.mins = s.mins;
       if ([15, 30, 60].indexOf(s.interval) !== -1) fm.interval = s.interval;
       if (typeof s.repeat === 'boolean') fm.repeat = s.repeat;
-      if ([5, 10, 15].indexOf(s.breakMins) !== -1) fm.breakMins = s.breakMins;
     }
   } catch(e) {}
 
@@ -5210,12 +5210,11 @@ for (var i = 0; i < timeBtns.length; i++) {
   var statusEl = document.getElementById('fmStatus');
   var sel = document.getElementById('fmInterval');
   var repBtn = document.getElementById('fmRepeat');
-  var brkSel = document.getElementById('fmBreak');
   var lenBtns = document.querySelectorAll('.fm-len');
   var tickTimer = null;
 
   function save() {
-    try { localStorage.setItem(KEY, JSON.stringify({ mins: fm.mins, interval: fm.interval, repeat: fm.repeat, breakMins: fm.breakMins })); } catch(e) {}
+    try { localStorage.setItem(KEY, JSON.stringify({ mins: fm.mins, interval: fm.interval, repeat: fm.repeat })); } catch(e) {}
   }
 
   function nextStart(intervalMin) {
@@ -5245,7 +5244,6 @@ for (var i = 0; i < timeBtns.length; i++) {
     repBtn.textContent = '🔁 repeat: ' + (fm.repeat ? 'on' : 'off');
     repBtn.style.color = fm.repeat ? '#2d9e4f' : '#aaa';
     repBtn.style.borderColor = fm.repeat ? '#2d9e4f' : '#e8e8e8';
-    brkSel.style.display = fm.repeat ? '' : 'none';
   }
 
   function paintMain() {
@@ -5253,6 +5251,7 @@ for (var i = 0; i < timeBtns.length; i++) {
     btn.textContent = '🤝 focusmate mode: ' + (on ? 'on' : 'off');
     btn.style.color = on ? '#2d9e4f' : '#aaa';
     btn.style.borderColor = on ? '#2d9e4f' : '#e8e8e8';
+    renderCatchup();
   }
 
   function clearActiveTimeBtns() {
@@ -5321,12 +5320,12 @@ for (var i = 0; i < timeBtns.length; i++) {
   }
 
   function startBreak(lateSec) {
-    var secs = fm.breakMins * 60;
+    var secs = brk() * 60;
     fm.busy = true;
     try {
       hideBreakSuggestion();
       dropFocusMode();
-      startBreakTimer(fm.breakMins);
+      startBreakTimer(brk());
       if (lateSec > 0) {
         remaining = Math.max(1, secs - lateSec);
         sessionEndTime -= lateSec * 1000;
@@ -5346,11 +5345,11 @@ for (var i = 0; i < timeBtns.length; i++) {
     var phase = fm.phase === 'session' ? 'break' : 'session';
     var guard = 0;
     while (guard++ < 200) {                       // skip phases that fully passed while the page slept
-      var dur = (phase === 'break' ? fm.breakMins : fm.mins) * 60 * 1000;
+      var dur = (phase === 'break' ? brk() : fm.mins) * 60 * 1000;
       if (now - t >= dur) { t += dur; phase = phase === 'break' ? 'session' : 'break'; } else break;
     }
     var late = Math.max(0, Math.floor((now - t) / 1000));
-    fm.phaseEnd = t + (phase === 'break' ? fm.breakMins : fm.mins) * 60 * 1000;
+    fm.phaseEnd = t + (phase === 'break' ? brk() : fm.mins) * 60 * 1000;
     if (phase === 'break') startBreak(late); else startSession(late);
     tick();
   }
@@ -5372,15 +5371,52 @@ for (var i = 0; i < timeBtns.length; i++) {
       var diff = fm.target - Date.now();
       if (diff > 0) {
         statusEl.textContent = 'starts at ' + clock(fm.target) + ' (in ' + countdown(diff) + ')';
+        renderCatchup();
         return;
       }
       fire(Math.floor(-diff / 1000));
       return;
     }
     if (fm.active) {
-      if (fm.phase === 'session') statusEl.textContent = 'session until ' + clock(fm.phaseEnd) + ', then a ' + fm.breakMins + ' min break';
+      if (fm.phase === 'session') statusEl.textContent = 'session until ' + clock(fm.phaseEnd) + ', then a ' + brk() + ' min break';
       else if (fm.phase === 'break') statusEl.textContent = 'break until ' + clock(fm.phaseEnd) + ', then the next session starts';
     }
+  }
+
+  // ---- already started? offer the start times that are still inside the session ----
+  var catchKey = '';
+  function renderCatchup() {
+    var box = document.getElementById('fmCatchup');
+    var list = document.getElementById('fmCatchupBtns');
+    if (!box || !list) return;
+    var starts = [];
+    if (fm.armed) {
+      var now = Date.now(), step = fm.interval * 60000, lenMs = fm.mins * 60000;
+      var d = new Date(now);
+      d.setSeconds(0, 0);
+      d.setMinutes(Math.floor(d.getMinutes() / fm.interval) * fm.interval);
+      var b = d.getTime();
+      while (starts.length < 3 && now - b < lenMs) { starts.push(b); b -= step; }
+    }
+    var key = starts.map(function(b) { return b + ':' + Math.round((Date.now() - b) / 60000); }).join('|');
+    if (key === catchKey) return;               // only rebuild when something changed, so taps never get lost
+    catchKey = key;
+    list.innerHTML = '';
+    starts.forEach(function(bt) {
+      var ago = Math.max(0, Math.round((Date.now() - bt) / 60000));
+      var cb = document.createElement('button');
+      cb.style.cssText = PILL;
+      cb.textContent = clock(bt) + ' (' + ago + ' min ago)';
+      cb.addEventListener('click', function() { joinAt(bt); });
+      list.appendChild(cb);
+    });
+    box.style.display = starts.length ? 'flex' : 'none';
+  }
+
+  function joinAt(bt) {
+    if (!fm.armed) return;
+    fm.target = bt;
+    fire(Math.floor((Date.now() - bt) / 1000));   // start now, as if it had started at bt
   }
 
   function arm() {
@@ -5411,6 +5447,7 @@ for (var i = 0; i < timeBtns.length; i++) {
       save();
       paintLen();
       showIdle();
+      renderCatchup();
     });
   });
 
@@ -5427,15 +5464,9 @@ for (var i = 0; i < timeBtns.length; i++) {
     if (!fm.repeat && fm.active) stopAll('repeat is off. the current timer will finish on its own');
   });
 
-  brkSel.addEventListener('change', function() {
-    fm.breakMins = parseInt(this.value, 10);
-    save();
-  });
-
   document.addEventListener('visibilitychange', function() { if (!document.hidden) tick(); });
 
   sel.value = String(fm.interval);
-  brkSel.value = String(fm.breakMins);
   paintLen();
   paintRepeat();
 })();
