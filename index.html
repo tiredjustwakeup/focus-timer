@@ -720,6 +720,10 @@ button:active { transform: scale(0.97); }
 <div class="bg-overlay has-bg" id="bgOverlay" style="background: rgba(255, 255, 255, 0);"></div>
 
 <div class="sticky-header">
+  <div id="stickyTools" style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
+    <button id="stickyFocusBtn" style="font-size:12px;color:#888;background:rgba(255,255,255,0.6);border:1px solid #e0e0e0;border-radius:20px;padding:4px 14px;cursor:pointer;font-family:inherit;transition:all 0.2s;">🎯 focus mode: off</button>
+    <button id="aboutBtn" style="font-size:12px;color:#888;background:rgba(255,255,255,0.6);border:1px solid #e0e0e0;border-radius:20px;padding:4px 14px;cursor:pointer;font-family:inherit;transition:all 0.2s;">? how it works</button>
+  </div>
   <div class="sticky-label">working on</div>
   <div class="sticky-task" id="stickyTask" contenteditable="true" spellcheck="false" style="color: var(--theme-text, #2d9e4f);">my task</div>
   <div class="sticky-due" id="stickyDue"></div>
@@ -800,6 +804,55 @@ button:active { transform: scale(0.97); }
   </div>
 
 
+<div id="aboutModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:300;background:rgba(0,0,0,0.45);align-items:center;justify-content:center;padding:16px;box-sizing:border-box;">
+  <div style="background:#fff;color:#1a1a1a;border-radius:16px;max-width:520px;width:100%;max-height:85vh;overflow-y:auto;padding:24px 24px 20px;box-sizing:border-box;font-size:14px;line-height:1.5;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+      <div style="font-size:18px;font-weight:600;">how it works</div>
+      <button id="aboutClose" style="border:none;background:none;font-size:22px;cursor:pointer;color:#888;line-height:1;">&times;</button>
+    </div>
+    <!-- EDIT THE TEXT BELOW IN YOUR OWN WORDS -->
+    <div style="font-weight:600;margin-top:14px;">what this is</div>
+    <ul style="margin:4px 0 0;padding-left:20px;">
+      <li>This timer is built to support mindful work: one task at a time, with your attention on it.</li>
+      <li>Name your task at the top, start the timer, and stay with that one thing.</li>
+    </ul>
+    <div style="font-weight:600;margin-top:14px;">distracted and urge buttons</div>
+    <ul style="margin:4px 0 0;padding-left:20px;">
+      <li>Tap <b>distracted</b> when you notice your attention wandered. Noticing is the practice.</li>
+      <li>Tap <b>urge</b> when you feel the pull to switch tasks or check something, and let it pass without acting on it.</li>
+      <li>They only count. There is no judgment, and you see your totals when the session ends.</li>
+      <li>The ring in the middle is a breathing guide you can follow any time.</li>
+    </ul>
+    <div style="font-weight:600;margin-top:14px;">focus mode</div>
+    <ul style="margin:4px 0 0;padding-left:20px;">
+      <li>Best on a second monitor, or for tasks away from the computer like drawing, reading or cleaning.</li>
+      <li>On a single screen it covers your work.</li>
+      <li>It uses fullscreen, so you need to tap the button yourself.</li>
+    </ul>
+    <div style="font-weight:600;margin-top:14px;">focusmate mode</div>
+    <ul style="margin:4px 0 0;padding-left:20px;">
+      <li>Starts the timer for you at the next start time and repeats with breaks (25 min: 5 break, 50 min: 10, 75 min: 15).</li>
+      <li>Forgot to turn it on? Tap a recent start time to join the session already in progress.</li>
+      <li>Keep the tab open. Tap the page once so your browser allows sound.</li>
+    </ul>
+    <div style="font-weight:600;margin-top:14px;">good to know</div>
+    <ul style="margin:4px 0 0;padding-left:20px;">
+      <li>Works best in Chrome or Safari on a computer. Phones may pause timers when the screen locks.</li>
+      <li>A new day starts automatically.</li>
+    </ul>
+    <div style="font-weight:600;margin-top:14px;">your data stays with you</div>
+    <ul style="margin:4px 0 0;padding-left:20px;">
+      <li>Everything is saved in your own browser on your own device. Nothing is uploaded and no account is needed.</li>
+      <li>It does not sync between browsers or devices. Use export and import to back up or move your data.</li>
+      <li>Clearing your browser data erases it, so export a backup now and then.</li>
+    </ul>
+    <label style="display:flex;align-items:center;gap:8px;margin-top:18px;font-size:13px;color:#666;cursor:pointer;">
+      <input type="checkbox" id="aboutHide"> don't show this again
+    </label>
+    <div style="font-size:12px;color:#aaa;margin-top:4px;">You can reopen this from the bottom of the page or the ? button at the top.</div>
+  </div>
+</div>
+
 <div id="focusModeFooter" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:210;pointer-events:none;flex-direction:column;align-items:center;justify-content:center;">
   <div style="font-size:36px;color:rgba(255,255,255,0.55);letter-spacing:0.2em;text-transform:uppercase;font-weight:700;">focus mode</div>
   <div style="font-size:14px;color:rgba(255,255,255,0.35);margin-top:10px;letter-spacing:0.08em;">dim your screen for deeper focus 🌙</div>
@@ -832,6 +885,7 @@ button:active { transform: scale(0.97); }
     <div style="display:flex;align-items:center;justify-content:center;gap:8px;margin-top:2px;">
       <span id="sessionCountDisplay" style="font-size: 11px; color: rgb(45, 158, 79);">1 deep work session today ✦</span>
       <button id="sessionBtnInline" style="font-size: 10px; background: none; border-width: medium; border-style: none; border-color: currentcolor; border-image: none; cursor: pointer; font-family: inherit; padding: 0px; text-decoration: underline; text-underline-offset: 2px;">+ add</button>
+      <button id="sessionMinusInline" style="font-size: 10px; background: none; border-width: medium; border-style: none; border-color: currentcolor; border-image: none; cursor: pointer; font-family: inherit; padding: 0px; text-decoration: underline; text-underline-offset: 2px;">- remove</button>
     </div>
 
     <div class="mantra" id="mantra">you're doing it. one breath, one moment at a time.</div>
@@ -1145,6 +1199,7 @@ button:active { transform: scale(0.97); }
         <div class="sessions-num" id="sessionsNum">1</div>
         <div class="sub-label" id="sessionsMsg">first one down.</div>
         <button id="sessionBtn">+ add extra session</button>
+        <button id="sessionMinusBtn">- remove a session</button>
       </div>
     </div>
   </div><div class="section-block" data-id="scratch">
@@ -1221,6 +1276,7 @@ button:active { transform: scale(0.97); }
   </div>
   <div class="new-day-row">
     <button class="new-day-btn" id="newDayBtn">start a new day (resets trackers &amp; sessions)</button>
+    <div style="text-align:center;margin-top:14px;"><button id="aboutBtnBottom" style="font-size:12px;color:#888;background:none;border:1px solid #e0e0e0;border-radius:20px;padding:4px 14px;cursor:pointer;font-family:inherit;">? how it works</button></div>
   </div>
 
 </div>
@@ -2363,6 +2419,7 @@ function stopTick() {
 
 
 
+var tasks = [];
 function loadTasks() {
   try {
     var saved = localStorage.getItem('focusTimerTasks');
@@ -4499,6 +4556,16 @@ document.getElementById('resetUrgeBtn').addEventListener('click', function() {
 });
 document.getElementById('sessionBtn').addEventListener('click', addSession);
 document.getElementById('sessionBtnInline').addEventListener('click', addSession);
+function removeSession() {
+  if (sessions <= 0) return;
+  sessions--;
+  document.getElementById('sessionsNum').textContent = sessions;
+  refreshSessionMsg();
+  updateSessionCountDisplay();
+  saveStats();
+}
+document.getElementById('sessionMinusInline').addEventListener('click', removeSession);
+document.getElementById('sessionMinusBtn').addEventListener('click', removeSession);
 updateSessionCountDisplay();
 
 // Sticky tick button
@@ -4864,6 +4931,53 @@ try {
     document.getElementById('focusModeBtn').textContent = '🎯 focus mode: on';
   }
 } catch(e) {}
+
+// ---- STICKY FOCUS BUTTON + HOW IT WORKS ----
+(function() {
+  var sb = document.getElementById('stickyFocusBtn');
+  var main = document.getElementById('focusModeBtn');
+  if (!sb || !main) return;
+  function overlayUp() {
+    var f = document.getElementById('focusModeFooter');
+    return !!f && f.style.display === 'flex';
+  }
+  function sync() {
+    sb.textContent = focusModeOn ? '\ud83c\udfaf focus mode: on' : '\ud83c\udfaf focus mode: off';
+    sb.style.color = focusModeOn ? '#2d9e4f' : '';
+    sb.style.borderColor = focusModeOn ? '#2d9e4f' : '';
+  }
+  sb.addEventListener('click', function() {
+    if (overlayUp()) {
+      main.click();
+    } else if (focusModeOn) {
+      enterFocusMode();
+    } else {
+      main.click();
+      if (!running) enterFocusMode();
+    }
+    sync();
+  });
+  new MutationObserver(sync).observe(main, { childList: true, characterData: true, subtree: true });
+  sync();
+
+  var modal = document.getElementById('aboutModal');
+  var hide = document.getElementById('aboutHide');
+  function hidden() { try { return localStorage.getItem('focusTimerSeenAbout') === '1'; } catch(e) { return false; } }
+  function openAbout() { hide.checked = hidden(); modal.style.display = 'flex'; }
+  function closeAbout() {
+    modal.style.display = 'none';
+    try {
+      if (hide.checked) localStorage.setItem('focusTimerSeenAbout', '1');
+      else localStorage.removeItem('focusTimerSeenAbout');
+    } catch(e) {}
+  }
+  document.getElementById('aboutBtn').addEventListener('click', openAbout);
+  var bottom = document.getElementById('aboutBtnBottom');
+  if (bottom) bottom.addEventListener('click', openAbout);
+  document.getElementById('aboutClose').addEventListener('click', closeAbout);
+  modal.addEventListener('click', function(e) { if (e.target === modal) closeAbout(); });
+  if (!hidden()) openAbout();
+})();
 
 document.getElementById('newDayBtn').addEventListener('click', newDay);
 
