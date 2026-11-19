@@ -709,10 +709,41 @@ button:active { transform: scale(0.97); }
 #sessionPanel { padding-top: 10px !important; margin-top: 10px !important; }
 #sessionPanel > div { max-width: 680px !important; gap: 12px !important; }
 #sessionPanel button { font-size: clamp(13px, 3.4vw, 17px) !important; padding: 10px 18px !important; border-radius: 12px !important; }
-#sessionBreathWrap { width: 96px !important; }
-#sessionBreathWrap > div { width: 84px !important; height: 84px !important; }
-#sessionBreathRing { width: 36px !important; height: 36px !important; border-width: 4px !important; }
-#sessionBreathLabel { font-size: 12px !important; }
+
+
+#sessionBreathWrap { width: clamp(100px, 32vw, 140px) !important; }
+#sessionBreathWrap > div { width: clamp(90px, 30vw, 126px) !important; height: clamp(90px, 30vw, 126px) !important; }
+#sessionBreathRing { width: clamp(44px, 13vw, 66px) !important; height: clamp(44px, 13vw, 66px) !important; border-width: 4px !important; }
+#sessionBreathLabel { font-size: 13px !important; }
+.hdr-corner { position: absolute; top: calc(12px + env(safe-area-inset-top, 0px)); display: flex; gap: 2px; z-index: 2; }
+.hdr-pill { font-size: 11px; color: #aaa; background: none; border: none; border-radius: 20px; padding: 3px 8px; cursor: pointer; font-family: inherit; opacity: 0.8; transition: all 0.2s; }
+.hdr-pill:hover { opacity: 1; color: #666; background: none; }
+.hdr-pill.on { color: #2d9e4f; opacity: 1; }
+@media (max-width: 480px) { .hdr-long { display: none; } }
+.focus-on .hdr-pill { color: rgba(255,255,255,0.4); }
+.focus-on .hdr-pill:hover { color: rgba(255,255,255,0.75); background: none; }
+.focus-on .hdr-pill.on { color: rgba(120,210,150,0.85); }
+.scratch-float { top: calc(33vh + 16px); right: 16px; }
+.scratch-float.collapsed { min-height: 0 !important; height: auto !important; resize: none; }
+.scratch-float.collapsed #scratchPadFloat, .scratch-float.collapsed .scratch-footer { display: none; }
+.focus-on .scratch-float { background: rgba(20,22,30,0.5); border: 1px solid rgba(255,255,255,0.1); box-shadow: none; -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); transition: opacity 0.3s; }
+.focus-on .scratch-float:not(:focus-within) { opacity: 0.6; }
+.focus-on .scratch-float-header { background: transparent; border-bottom: 1px solid rgba(255,255,255,0.08); }
+.focus-on .scratch-float-header span { color: rgba(255,255,255,0.35) !important; }
+.focus-on .scratch-float .task-clear-btn { color: rgba(255,255,255,0.35); }
+.focus-on #scratchPadFloat { background: transparent; color: rgba(255,255,255,0.72); }
+.focus-on #scratchPadFloat::placeholder { color: rgba(255,255,255,0.25); }
+.focus-on .scratch-float .scratch-footer { background: transparent; border-top: 1px solid rgba(255,255,255,0.08); }
+.focus-on .scratch-float .task-hint { color: rgba(255,255,255,0.3); }
+.mantra { text-wrap: balance; max-width: min(420px, 92%); margin-left: auto; margin-right: auto; }
+@media (max-width: 480px) {
+  #sessionPanel > div { gap: 4px !important; }
+  #sessionPanel button { padding: 9px 8px !important; font-size: 12px !important; }
+  #sessionBreathWrap { width: 27vw !important; }
+  #sessionBreathWrap > div { width: 25vw !important; height: 25vw !important; }
+  #sessionBreathRing { width: 12vw !important; height: 12vw !important; }
+}
+
 </style>
 </head>
 <body style="background-image: initial; background-position: initial; background-size: initial; background-repeat: initial; background-attachment: initial; background-origin: initial; background-clip: initial; background-color: rgb(249, 249, 248) !important; color: rgb(26, 26, 26);">
@@ -720,9 +751,12 @@ button:active { transform: scale(0.97); }
 <div class="bg-overlay has-bg" id="bgOverlay" style="background: rgba(255, 255, 255, 0);"></div>
 
 <div class="sticky-header">
-  <div id="stickyTools" style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
-    <button id="stickyFocusBtn" style="font-size:12px;color:#888;background:rgba(255,255,255,0.6);border:1px solid #e0e0e0;border-radius:20px;padding:4px 14px;cursor:pointer;font-family:inherit;transition:all 0.2s;">🎯 focus mode: off</button>
-    <button id="aboutBtn" style="font-size:12px;color:#888;background:rgba(255,255,255,0.6);border:1px solid #e0e0e0;border-radius:20px;padding:4px 14px;cursor:pointer;font-family:inherit;transition:all 0.2s;">? how it works</button>
+  <div class="hdr-corner" style="left:14px;">
+    <button id="stickyScratchBtn" class="hdr-pill" title="scratchpad: park distractions here">&#9998;<span class="hdr-long"> scratchpad</span></button>
+    <button id="aboutBtn" class="hdr-pill" title="how it works">?<span class="hdr-long"> how it works</span></button>
+  </div>
+  <div class="hdr-corner" style="right:14px;">
+    <button id="stickyFocusBtn" class="hdr-pill">🎯 focus mode</button>
   </div>
   <div class="sticky-label">working on</div>
   <div class="sticky-task" id="stickyTask" contenteditable="true" spellcheck="false" style="color: var(--theme-text, #2d9e4f);">my task</div>
@@ -738,7 +772,7 @@ button:active { transform: scale(0.97); }
         </div>
         <span style="font-size:8px;color:#ccc;" id="sessionBreathLabel">breathe</span>
       </div>
-      <button id="sessionUrgeBtn" style="font-size: 11px; padding: 5px 12px; border-width: 1.5px; border-style: solid; border-image: none; border-radius: 8px; background: transparent; cursor: pointer; font-family: inherit; white-space: nowrap;">💫 urge (<span id="sessionUrgeCount">0</span>)</button>
+      <button id="sessionUrgeBtn" style="font-size: 11px; padding: 5px 12px; border-width: 1.5px; border-style: solid; border-image: none; border-radius: 8px; background: transparent; cursor: pointer; font-family: inherit; white-space: nowrap;">🌊 urge (<span id="sessionUrgeCount">0</span>)</button>
     </div>
   </div>
 </div>
@@ -760,10 +794,11 @@ button:active { transform: scale(0.97); }
   </div>
 </div>
 
-<div class="scratch-float" id="scratchFloat" style="display: none; top: 740px; left: 10px; right: auto;">
+<div class="scratch-float" id="scratchFloat" style="display: none;">
   <div class="scratch-float-header" id="scratchFloatHandle">
     <span style="font-size:11px;color:#999;text-transform:uppercase;letter-spacing:0.08em">scratchpad</span>
-    <button class="task-clear-btn" id="scratchDockBtn" title="dock back into page">⧊ dock</button>
+    <span><button class="task-clear-btn" id="scratchCollapseBtn" title="collapse">&ndash;</button>
+    <button class="task-clear-btn" id="scratchDockBtn" title="dock back into page">⧊ dock</button></span>
   </div>
   <textarea id="scratchPadFloat" placeholder="type anything here..." spellcheck="false"></textarea>
   <div class="scratch-footer">
@@ -772,7 +807,7 @@ button:active { transform: scale(0.97); }
   </div>
 </div>
 
-<div class="task-float" id="taskFloat" style="display: none; top: 375px; left: 0px; right: auto;">
+<div class="task-float" id="taskFloat" style="display: none;">
   <div class="task-float-header" id="taskFloatHandle">
     <span style="font-size:11px;color:#666;font-weight:600;text-transform:uppercase;letter-spacing:0.06em">tasks</span>
     <div style="display:flex;gap:6px;align-items:center">
@@ -813,38 +848,44 @@ button:active { transform: scale(0.97); }
     <!-- EDIT THE TEXT BELOW IN YOUR OWN WORDS -->
     <div style="font-weight:600;margin-top:14px;">what this is</div>
     <ul style="margin:4px 0 0;padding-left:20px;">
-      <li>This timer is built to support mindful work: one task at a time, with your attention on it.</li>
-      <li>Name your task at the top, start the timer, and stay with that one thing.</li>
+      <li>This timer is here to support single-tasking and mindful working.</li>
+      <li>Choose a task, name it at the top, and begin. Each time you return to it, you are beginning again.</li>
     </ul>
     <div style="font-weight:600;margin-top:14px;">distracted and urge buttons</div>
     <ul style="margin:4px 0 0;padding-left:20px;">
-      <li>Tap <b>distracted</b> when you notice your attention wandered. Noticing is the practice.</li>
-      <li>Tap <b>urge</b> when you feel the pull to switch tasks or check something, and let it pass without acting on it.</li>
-      <li>They only count. There is no judgment, and you see your totals when the session ends.</li>
-      <li>The ring in the middle is a breathing guide you can follow any time.</li>
+      <li>When you notice your mind has wandered, tap <b>distracted</b>, then gently come back. Noticing is the practice.</li>
+      <li>When you feel the pull to check something or switch tasks, tap <b>urge</b>. Breathe and surf it like a wave. Let it rise, and let it pass. You don't need to follow it, and you don't need to fight it.</li>
+      <li>The buttons simply count. There is nothing to judge, and you can see your totals when the session ends.</li>
+      <li>The ring in the middle is a breathing guide. Follow it whenever you like.</li>
+    </ul>
+    <div style="font-weight:600;margin-top:14px;">scratchpad</div>
+    <ul style="margin:4px 0 0;padding-left:20px;">
+      <li>When a thought or a to-do appears while you work, you can set it down in the &#9998; scratchpad at the top left and return to your task. It will be waiting for you later.</li>
+      <li>It saves on its own. You can move it, fold it away with the &ndash; button, or close it with &#9998; again.</li>
     </ul>
     <div style="font-weight:600;margin-top:14px;">focus mode</div>
     <ul style="margin:4px 0 0;padding-left:20px;">
-      <li>Best on a second monitor, or for tasks away from the computer like drawing, reading or cleaning.</li>
-      <li>On a single screen it covers your work.</li>
-      <li>It uses fullscreen, so you need to tap the button yourself.</li>
+      <li>Focus mode quiets the screen so there is less to pull at your attention.</li>
+      <li>It is lovely on a second monitor, or for work away from the computer, like drawing, reading or tidying. On a single screen it will cover your work.</li>
+      <li>Your browser asks you to tap the button yourself to enter fullscreen.</li>
     </ul>
     <div style="font-weight:600;margin-top:14px;">focusmate mode</div>
     <ul style="margin:4px 0 0;padding-left:20px;">
-      <li>Starts the timer for you at the next start time and repeats with breaks (25 min: 5 break, 50 min: 10, 75 min: 15).</li>
-      <li>Forgot to turn it on? Tap a recent start time to join the session already in progress.</li>
-      <li>Keep the tab open. Tap the page once so your browser allows sound.</li>
+      <li>Made to match your Focusmate sessions. Choose your session length (25, 50 or 75 min) and the timer starts by itself at the next start time, so you can begin together with your partner.</li>
+      <li>After each session it gives you a break that matches Focusmate (25 min: 5, 50 min: 10, 75 min: 15), then starts the next session on time.</li>
+      <li>Forgot to turn it on? Tap a recent start time to join the session already under way.</li>
+      <li>Keep this tab open, and tap the page once so your browser allows sound.</li>
     </ul>
     <div style="font-weight:600;margin-top:14px;">good to know</div>
     <ul style="margin:4px 0 0;padding-left:20px;">
-      <li>Works best in Chrome or Safari on a computer. Phones may pause timers when the screen locks.</li>
-      <li>A new day starts automatically.</li>
+      <li>Works best in Chrome or Safari on a computer. Phones may pause the timer when the screen locks.</li>
+      <li>A new day begins on its own.</li>
     </ul>
     <div style="font-weight:600;margin-top:14px;">your data stays with you</div>
     <ul style="margin:4px 0 0;padding-left:20px;">
-      <li>Everything is saved in your own browser on your own device. Nothing is uploaded and no account is needed.</li>
-      <li>It does not sync between browsers or devices. Use export and import to back up or move your data.</li>
-      <li>Clearing your browser data erases it, so export a backup now and then.</li>
+      <li>Everything stays in your own browser, on your own device. Nothing is uploaded, and no account is needed.</li>
+      <li>It does not travel between browsers or devices, so use export and import to back it up or move it.</li>
+      <li>Clearing your browser data clears it too, so you may want to export a backup now and then.</li>
     </ul>
     <label style="display:flex;align-items:center;gap:8px;margin-top:18px;font-size:13px;color:#666;cursor:pointer;">
       <input type="checkbox" id="aboutHide"> don't show this again
@@ -1305,22 +1346,22 @@ var audioCtx = null;
 var activeTaskDue = '';
 
 var mantras = [
-  "you are here. this moment is enough.",
-  "notice the resistance. let it pass like a cloud.",
-  "your attention is the work. bring it back, gently.",
-  "progress lives in the present, not the outcome.",
-  "each return to focus is a small act of courage.",
-  "you don't have to feel ready. just begin again.",
-  "the mind wanders. that's okay. so does the river.",
-  "you're doing it. one breath, one moment at a time."
+  "breathing in, i know i am breathing in.",
+  "breathing out, i smile.",
+  "this one task, this one moment.",
+  "when the mind wanders, return to the breath.",
+  "you have already arrived. this moment is home.",
+  "let the urge rise like a wave, and let it pass.",
+  "let each minute be a gentle step.",
+  "with each breath, return to what you are doing."
 ];
 
 var breakMantras = [
-  "rest is part of the work.",
-  "let your eyes look far away for a moment.",
-  "stretch, sip some water, breathe.",
-  "you earned this. enjoy it.",
-  "no guilt. this is recovery time."
+  "breathing in, calm. breathing out, ease.",
+  "look at something far away and let your eyes rest.",
+  "sip some water slowly and taste it.",
+  "walk a few steps and feel your feet.",
+  "rest is also practice."
 ];
 
 function fmt(s) {
@@ -1652,6 +1693,7 @@ function startTimer() {
   document.getElementById('done').style.display = 'none';
   document.querySelector('.sticky-header').classList.add('running');
   playBell();
+  scheduleEndBell();
   if (tickOn && !isBreak) startTick();
   if (!isBreak) {
     document.getElementById('sessionPanel').style.display = 'block';
@@ -1672,7 +1714,7 @@ function startTimer() {
       document.getElementById('pauseBtn').style.display = 'none';
       document.getElementById('startBtn').style.display = '';
       document.getElementById('finishBtn').style.display = 'none';
-      playBell();
+      playEndBell();
       var d = document.getElementById('done');
       d.style.display = 'block';
       if (isBreak) {
@@ -1723,7 +1765,7 @@ document.addEventListener('visibilitychange', function() {
       document.getElementById('pauseBtn').style.display = 'none';
       document.getElementById('startBtn').style.display = '';
       document.getElementById('finishBtn').style.display = 'none';
-      playBell();
+      playEndBell();
       var d = document.getElementById('done');
       d.style.display = 'block';
       if (isBreak) {
@@ -1761,6 +1803,7 @@ document.addEventListener('visibilitychange', function() {
 
 function finishEarly() {
   if (!running && remaining === TOTAL) return;
+  cancelEndBell();
   if (window.fmOnManualStop) window.fmOnManualStop();
   clearInterval(timerInterval);
   clearInterval(breathInterval);
@@ -1796,6 +1839,7 @@ function finishEarly() {
 
 function pauseTimer() {
   if (!running) return;
+  cancelEndBell();
   clearInterval(timerInterval);
   stopTick();
   document.getElementById('sessionPanel').style.display = 'none';
@@ -1807,6 +1851,7 @@ function pauseTimer() {
 }
 
 function resetTimer() {
+  cancelEndBell();
   if (window.fmOnManualStop) window.fmOnManualStop();
   clearInterval(timerInterval);
   clearInterval(breathInterval);
@@ -2221,6 +2266,49 @@ function newDay() {
 function getAudioCtx() {
   if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
   return audioCtx;
+}
+
+// The end bell is scheduled on the audio clock when a session starts, so it still rings on time
+// when the tab is minimized and the page timers are throttled.
+var endBell = { nodes: [], on: false };
+function cancelEndBell() {
+  endBell.nodes.forEach(function(o) { try { o.stop(0); } catch(e) {} });
+  endBell.nodes = [];
+  endBell.on = false;
+}
+function scheduleEndBell() {
+  cancelEndBell();
+  if (bellMuted || !sessionEndTime) return;
+  try {
+    var ctx = getAudioCtx();
+    var go = function() {
+      if (ctx.state !== 'running' || !running || !sessionEndTime) return;
+      var secs = Math.max(0, (sessionEndTime - Date.now()) / 1000);
+      var vol = parseFloat(document.getElementById('volumeSlider').value);
+      var t0 = ctx.currentTime + secs;
+      [523, 659, 784].forEach(function(freq, i) {
+        var t = t0 + i * 0.6;
+        var osc = ctx.createOscillator();
+        var gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, t);
+        gain.gain.setValueAtTime(0, t);
+        gain.gain.linearRampToValueAtTime(vol, t + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.001, t + 2.5);
+        osc.start(t);
+        osc.stop(t + 2.5);
+        endBell.nodes.push(osc);
+      });
+      endBell.on = true;
+    };
+    if (ctx.state === 'running') go(); else ctx.resume().then(go, function() {});
+  } catch(e) {}
+}
+function playEndBell() {
+  if (endBell.on) { endBell.nodes = []; endBell.on = false; return; }  // already scheduled, it rings by itself
+  playBell();
 }
 
 function playBell() {
@@ -4440,7 +4528,7 @@ document.getElementById('toggleScratch').addEventListener('click', function() {
 
   try {
     var sp = localStorage.getItem('focusTimerScratchPos');
-    if (sp) { var pos = JSON.parse(sp); el.style.top = pos.top + 'px'; el.style.left = pos.left + 'px'; el.style.right = 'auto'; }
+    if (sp) { var pos = JSON.parse(sp); el.style.top = Math.max(0, Math.min(pos.top, window.innerHeight - 60)) + 'px'; el.style.left = Math.max(0, Math.min(pos.left, window.innerWidth - 120)) + 'px'; el.style.right = 'auto'; }
   } catch(e) {}
 
   function getXY(e) { return e.touches ? { x: e.touches[0].clientX, y: e.touches[0].clientY } : { x: e.clientX, y: e.clientY }; }
@@ -4864,6 +4952,7 @@ function enterFocusMode() {
     if (el) el.innerHTML = chips[id];
   });
 
+  document.body.classList.add('focus-on');
   document.getElementById('focusBanner').style.display = 'flex';
   document.getElementById('focusModeFooter').style.display = 'flex';
   var sh = document.querySelector('.sticky-header');
@@ -4888,6 +4977,7 @@ function exitFocusMode() {
 
 
 
+  document.body.classList.remove('focus-on');
   document.getElementById('focusBanner').style.display = 'none';
   document.getElementById('focusModeFooter').style.display = 'none';
   var sh2 = document.querySelector('.sticky-header');
@@ -4941,11 +5031,7 @@ try {
     var f = document.getElementById('focusModeFooter');
     return !!f && f.style.display === 'flex';
   }
-  function sync() {
-    sb.textContent = focusModeOn ? '\ud83c\udfaf focus mode: on' : '\ud83c\udfaf focus mode: off';
-    sb.style.color = focusModeOn ? '#2d9e4f' : '';
-    sb.style.borderColor = focusModeOn ? '#2d9e4f' : '';
-  }
+  function sync() { sb.classList.toggle('on', !!focusModeOn); }
   sb.addEventListener('click', function() {
     if (overlayUp()) {
       main.click();
@@ -4959,6 +5045,31 @@ try {
   });
   new MutationObserver(sync).observe(main, { childList: true, characterData: true, subtree: true });
   sync();
+
+  // scratchpad button in the header: shows or hides the floating scratchpad
+  var sf = document.getElementById('scratchFloat');
+  var scb = document.getElementById('stickyScratchBtn');
+  function scratchSync() { scb.classList.toggle('on', sf.style.display === 'flex'); }
+  scb.addEventListener('click', function() {
+    if (sf.style.display === 'flex') { sf.style.display = 'none'; }
+    else {
+      document.getElementById('scratchBox').style.display = 'none';
+      document.getElementById('toggleScratch').innerHTML = '&#9658; scratchpad';
+      sf.style.display = 'flex';
+      sf.classList.remove('collapsed');
+      document.getElementById('scratchCollapseBtn').innerHTML = '&ndash;';
+      document.getElementById('scratchPadFloat').focus();
+    }
+    scratchSync();
+  });
+  new MutationObserver(scratchSync).observe(sf, { attributes: true, attributeFilter: ['style'] });
+  var colb = document.getElementById('scratchCollapseBtn');
+  colb.addEventListener('mousedown', function(e) { e.stopPropagation(); });
+  colb.addEventListener('click', function() {
+    var c = sf.classList.toggle('collapsed');
+    colb.innerHTML = c ? '+' : '&ndash;';
+  });
+  scratchSync();
 
   var modal = document.getElementById('aboutModal');
   var hide = document.getElementById('aboutHide');
@@ -5013,7 +5124,7 @@ document.getElementById('quickAddFloat').addEventListener('keydown', function(e)
 
   try {
     var sp = localStorage.getItem('focusTimerTaskFloatPos');
-    if (sp) { var pos = JSON.parse(sp); el.style.top = pos.top + 'px'; el.style.left = pos.left + 'px'; el.style.right = 'auto'; }
+    if (sp) { var pos = JSON.parse(sp); el.style.top = Math.max(0, Math.min(pos.top, window.innerHeight - 60)) + 'px'; el.style.left = Math.max(0, Math.min(pos.left, window.innerWidth - 120)) + 'px'; el.style.right = 'auto'; }
   } catch(e) {}
 
   handle.addEventListener('mousedown', function(e) {
@@ -5443,6 +5554,7 @@ for (var i = 0; i < timeBtns.length; i++) {
       if (lateSec > 0) {
         remaining = Math.max(1, secs - lateSec);
         sessionEndTime -= lateSec * 1000;
+        scheduleEndBell();
         setDisplay(remaining);
         setProgress((secs - remaining) / secs * 100);
       }
