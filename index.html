@@ -735,8 +735,10 @@ button:active { transform: scale(0.97); }
 .focus-on #scratchPadFloat::placeholder { color: rgba(255,255,255,0.25); }
 .focus-on .scratch-float .scratch-footer { background: transparent; border-top: 1px solid rgba(255,255,255,0.08); }
 .focus-on .scratch-float .task-hint { color: rgba(255,255,255,0.3); }
-#pipBox { position: fixed; left: 16px; top: calc(33vh + 16px); width: 170px; height: 170px; min-width: 100px; min-height: 100px; max-width: 360px; max-height: 360px; resize: both; overflow: hidden; border: 1.5px dashed rgba(128,128,128,0.45); border-radius: 12px; z-index: 90; align-items: center; justify-content: center; text-align: center; font-size: 11px; line-height: 1.5; color: rgba(128,128,128,0.8); padding: 8px; box-sizing: border-box; }
-@media (max-width: 640px) { #pipBox, #stickyPipBtn { display: none !important; } }
+#pipBox { user-select: none; -webkit-user-select: none; position: absolute; left: 14px; top: 46px; width: 135px; height: 240px; min-width: 90px; min-height: 90px; max-width: 420px; max-height: 420px; resize: both; overflow: hidden; border: 1.5px dashed rgba(128,128,128,0.45); border-radius: 12px; z-index: 1; align-items: center; justify-content: center; text-align: center; font-size: 11px; line-height: 1.5; color: rgba(128,128,128,0.8); padding: 8px; box-sizing: border-box; }
+.sticky-header.pip-on { min-height: max(33vh, 310px); }
+.focus-on #pipBox { border-color: rgba(255,255,255,0.22); color: rgba(255,255,255,0.35); }
+@media (max-width: 760px) { #pipBox, #stickyPipBtn { display: none !important; } }
 body[data-vibe="dark"] .sticky-task { color: #8fe0a8 !important; }
 body[data-vibe="dark"] .sticky-header.on-break { background: #14233f !important; border-color: #2a4a7e !important; }
 body[data-vibe="dark"] .sticky-header.on-break .sticky-label { color: #8fb0e0 !important; }
@@ -763,11 +765,12 @@ body[data-vibe="dark"] #finishBtn { background: rgba(45,158,79,0.18) !important;
   <div class="hdr-corner" style="left:14px;">
     <button id="stickyFocusBtn" class="hdr-pill">🎯 focus mode</button>
     <button id="stickyScratchBtn" class="hdr-pill" title="scratchpad: park distractions here">&#9998;<span class="hdr-long"> scratchpad</span></button>
-    <button id="stickyPipBtn" class="hdr-pill" title="a spot to park your focusmate video window">&#9633;<span class="hdr-long"> video</span></button>
+    <button id="stickyPipBtn" class="hdr-pill" title="a spot to park your focusmate picture-in-picture window">&#9633;<span class="hdr-long"> picture in picture</span></button>
   </div>
   <div class="hdr-corner" style="right:14px;">
     <button id="aboutBtn" class="hdr-pill" title="how it works">?<span class="hdr-long"> how it works</span></button>
   </div>
+  <div id="pipBox" style="display:none;" title="drag the corner to resize, double-click to flip portrait/landscape">picture in picture<br>park your focusmate window here</div>
   <div class="sticky-label">working on</div>
   <div class="sticky-task" id="stickyTask" contenteditable="true" spellcheck="false" style="color: var(--theme-text, #2d9e4f);">my task</div>
   <div class="sticky-due" id="stickyDue"></div>
@@ -803,8 +806,6 @@ body[data-vibe="dark"] #finishBtn { background: rgba(45,158,79,0.18) !important;
     <svg viewBox="0 0 16 16" fill="currentColor"><path d="M14 14H10V12.5H12.5V10H14V14ZM14 6.5H12.5V4H10V2.5H14V6.5ZM2 9.5H3.5V12H6V13.5H2V9.5ZM6 2.5H3.5V5H2V1H6V2.5Z"></path></svg>
   </div>
 </div>
-
-<div id="pipBox" style="display:none;">focusmate video<br>park your picture-in-picture window here</div>
 
 <div class="scratch-float" id="scratchFloat" style="display: none;">
   <div class="scratch-float-header" id="scratchFloatHandle">
@@ -886,7 +887,7 @@ body[data-vibe="dark"] #finishBtn { background: rgba(45,158,79,0.18) !important;
       <li>Made to match your Focusmate sessions. Choose your session length (25, 50 or 75 min) and the timer starts by itself at the next start time, so you can begin together with your partner.</li>
       <li>After each session it gives you a break that matches Focusmate (25 min: 5, 50 min: 10, 75 min: 15), then starts the next session on time.</li>
       <li>Forgot to turn it on? Tap a recent start time to join the session already under way.</li>
-      <li>The &#9633; button at the top left shows a dashed square. Park your Focusmate picture-in-picture window over it, and drag its corner to match the size.</li>
+      <li>The &#9633; button at the top left shows a dashed box in the header. Park your Focusmate picture-in-picture window over it. Drag its corner to resize, or double-click to flip it between portrait and landscape.</li>
       <li>Keep this tab open, and tap the page once so your browser allows sound.</li>
     </ul>
     <div style="font-weight:600;margin-top:14px;">good to know</div>
@@ -5091,18 +5092,25 @@ try {
   function pipShow(on) {
     pip.style.display = on ? 'flex' : 'none';
     pb.classList.toggle('on', on);
+    var hdr = document.querySelector('.sticky-header');
+    if (hdr) hdr.classList.toggle('pip-on', on);
     try { localStorage.setItem('focusTimerPipOn', on ? '1' : '0'); } catch(e) {}
   }
   pb.addEventListener('click', function() { pipShow(pip.style.display !== 'flex'); });
   try {
-    var sz = JSON.parse(localStorage.getItem('focusTimerPipSize') || 'null');
+    var sz = JSON.parse(localStorage.getItem('focusTimerPipSize2') || 'null');
     if (sz) { pip.style.width = sz.w + 'px'; pip.style.height = sz.h + 'px'; }
     if (localStorage.getItem('focusTimerPipOn') === '1') pipShow(true);
   } catch(e) {}
+  pip.addEventListener('dblclick', function() {
+    var w = pip.offsetWidth, h = pip.offsetHeight;
+    pip.style.width = h + 'px';
+    pip.style.height = w + 'px';
+  });
   if (window.ResizeObserver) {
     new ResizeObserver(function() {
       if (pip.style.display !== 'flex') return;
-      try { localStorage.setItem('focusTimerPipSize', JSON.stringify({ w: Math.round(pip.offsetWidth), h: Math.round(pip.offsetHeight) })); } catch(e) {}
+      try { localStorage.setItem('focusTimerPipSize2', JSON.stringify({ w: Math.round(pip.offsetWidth), h: Math.round(pip.offsetHeight) })); } catch(e) {}
     }).observe(pip);
   }
 
