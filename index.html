@@ -811,7 +811,7 @@ body[data-vibe="dark"] #finishBtn { background: rgba(45,158,79,0.18) !important;
   <div class="scratch-float-header" id="scratchFloatHandle">
     <span style="font-size:11px;color:#999;text-transform:uppercase;letter-spacing:0.08em">scratchpad</span>
     <span><button class="task-clear-btn" id="scratchCollapseBtn" title="collapse">&ndash;</button>
-    <button class="task-clear-btn" id="scratchDockBtn" title="dock back into page">⧊ dock</button></span>
+    <button class="task-clear-btn" id="scratchDockBtn" title="close">&times; close</button></span>
   </div>
   <textarea id="scratchPadFloat" placeholder="type anything here..." spellcheck="false"></textarea>
   <div class="scratch-footer">
@@ -1255,24 +1255,6 @@ body[data-vibe="dark"] #finishBtn { background: rgba(45,158,79,0.18) !important;
         <div class="sub-label" id="sessionsMsg">first one down.</div>
         <button id="sessionBtn">+ add extra session</button>
         <button id="sessionMinusBtn">- remove a session</button>
-      </div>
-    </div>
-  </div><div class="section-block" data-id="scratch">
-    <div class="section-handle" title="drag to reorder">⋮⋮</div>
-    <div class="section-content">
-      <div style="width:100%;display:flex;justify-content:center">
-        <button class="toggle-btn" id="toggleScratch">► scratchpad</button>
-      </div>
-      <div class="scratch-box" id="scratchBox" style="display:none">
-        <div style="display:flex;align-items:center;justify-content:space-between;width:100%">
-          <div class="color-picker-label">scratchpad</div>
-          <button class="task-clear-btn" id="scratchPopBtn" title="pop out to floating window">⧉ pop out</button>
-        </div>
-        <textarea id="scratchPad" placeholder="type anything here — ideas, notes, thoughts. it saves automatically." spellcheck="false"></textarea>
-        <div class="scratch-footer">
-          <span class="task-hint" id="scratchSaved"></span>
-          <button class="task-clear-btn" id="scratchClearBtn">clear all</button>
-        </div>
       </div>
     </div>
   </div></div><!-- end sectionsContainer -->
@@ -4464,7 +4446,7 @@ function saveScratch(value) {
   clearTimeout(scratchSaveTimer);
   scratchSaveTimer = setTimeout(function() {
     try { localStorage.setItem('focusTimerScratch', value); } catch(e) {}
-    var indicators = ['scratchSaved', 'scratchSavedFloat'];
+    var indicators = ['scratchSavedFloat'];
     indicators.forEach(function(id) {
       var el = document.getElementById(id);
       if (el) {
@@ -4478,60 +4460,22 @@ function saveScratch(value) {
 try {
   var savedScratch = localStorage.getItem('focusTimerScratch');
   if (savedScratch) {
-    document.getElementById('scratchPad').value = savedScratch;
     document.getElementById('scratchPadFloat').value = savedScratch;
   }
 } catch(e) {}
 
-document.getElementById('scratchPad').addEventListener('input', function() {
-  document.getElementById('scratchPadFloat').value = this.value;
-  saveScratch(this.value);
-});
-
 document.getElementById('scratchPadFloat').addEventListener('input', function() {
-  document.getElementById('scratchPad').value = this.value;
   saveScratch(this.value);
-});
-
-document.getElementById('scratchClearBtn').addEventListener('click', function() {
-  if (!confirm('Clear the scratchpad?')) return;
-  document.getElementById('scratchPad').value = '';
-  document.getElementById('scratchPadFloat').value = '';
-  try { localStorage.removeItem('focusTimerScratch'); } catch(e) {}
 });
 
 document.getElementById('scratchClearFloatBtn').addEventListener('click', function() {
   if (!confirm('Clear the scratchpad?')) return;
-  document.getElementById('scratchPad').value = '';
   document.getElementById('scratchPadFloat').value = '';
   try { localStorage.removeItem('focusTimerScratch'); } catch(e) {}
 });
 
-document.getElementById('scratchPopBtn').addEventListener('click', function() {
-  document.getElementById('scratchBox').style.display = 'none';
-  document.getElementById('scratchFloat').style.display = 'flex';
-  document.getElementById('scratchPadFloat').focus();
-  document.getElementById('toggleScratch').innerHTML = '&#9660; scratchpad';
-});
-
 document.getElementById('scratchDockBtn').addEventListener('click', function() {
   document.getElementById('scratchFloat').style.display = 'none';
-  document.getElementById('scratchBox').style.display = 'flex';
-  document.getElementById('scratchPad').focus();
-});
-
-document.getElementById('toggleScratch').addEventListener('click', function() {
-  var float = document.getElementById('scratchFloat');
-  var box = document.getElementById('scratchBox');
-  if (float.style.display === 'flex') {
-    float.style.display = 'none';
-    this.innerHTML = '&#9658; scratchpad';
-    return;
-  }
-  var isHidden = box.style.display === 'none' || box.style.display === '';
-  box.style.display = isHidden ? 'flex' : 'none';
-  this.innerHTML = (isHidden ? '&#9660;' : '&#9658;') + ' scratchpad';
-  if (isHidden) document.getElementById('scratchPad').focus();
 });
 
 // Drag the floating scratchpad
@@ -4949,7 +4893,7 @@ function enterFocusMode() {
   // Timer card stays under overlay (dimmed)
 
   // Collapse all sections
-  var boxes = ['soundPanel','trackersBox','sessionsBox','tasksBox','laterBox','scratchBox'];
+  var boxes = ['soundPanel','trackersBox','sessionsBox','tasksBox','laterBox'];
   boxes.forEach(function(id) {
     var el = document.getElementById(id);
     if (el) el.style.display = 'none';
@@ -4959,8 +4903,7 @@ function enterFocusMode() {
     'toggleCalls': '&#9658; trackers',
     'toggleSessions': '&#9658; sessions completed',
     'toggleTasks': '&#9658; my tasks',
-    'toggleLater': '&#9658; later',
-    'toggleScratch': '&#9658; scratchpad'
+    'toggleLater': '&#9658; later'
   };
   Object.keys(chips).forEach(function(id) {
     var el = document.getElementById(id);
@@ -5068,8 +5011,6 @@ try {
   scb.addEventListener('click', function() {
     if (sf.style.display === 'flex') { sf.style.display = 'none'; }
     else {
-      document.getElementById('scratchBox').style.display = 'none';
-      document.getElementById('toggleScratch').innerHTML = '&#9658; scratchpad';
       sf.style.display = 'flex';
       sf.classList.remove('collapsed');
       document.getElementById('scratchCollapseBtn').innerHTML = '&ndash;';
@@ -5660,12 +5601,14 @@ for (var i = 0; i < timeBtns.length; i++) {
     if (!box || !list) return;
     var starts = [];
     if (fm.armed) {
-      var now = Date.now(), step = fm.interval * 60000, lenMs = fm.mins * 60000;
+      // Focusmate sessions start every 15 minutes, so the join list always uses 15 min steps
+      var cstep = 15;
+      var now = Date.now(), step = cstep * 60000, lenMs = fm.mins * 60000;
       var d = new Date(now);
       d.setSeconds(0, 0);
-      d.setMinutes(Math.floor(d.getMinutes() / fm.interval) * fm.interval);
+      d.setMinutes(Math.floor(d.getMinutes() / cstep) * cstep);
       var b = d.getTime();
-      while (starts.length < 3 && now - b < lenMs) { starts.push(b); b -= step; }
+      while (starts.length < 4 && now - b < lenMs) { starts.push(b); b -= step; }
     }
     var key = starts.map(function(b) { return b + ':' + Math.round((Date.now() - b) / 60000); }).join('|');
     if (key === catchKey) return;               // only rebuild when something changed, so taps never get lost
